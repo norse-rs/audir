@@ -2,7 +2,7 @@ use norse_audir::wasapi;
 
 fn main() {
     unsafe {
-        let instance = wasapi::Instance::create();
+        let instance = wasapi::Instance::create("audir - sine");
         let input_devices = instance.enumerate_physical_input_devices();
         let output_devices = instance.enumerate_physical_output_devices();
 
@@ -16,7 +16,7 @@ fn main() {
             println!("{:#?}", device.get_properties());
         }
 
-        let device = instance.create_device(output_devices[0]);
+        let device = instance.create_device(&output_devices[0]);
         let buffer_frames = dbg!(device.get_buffer_frames());
         let stream = device.get_output_stream();
         device.start();

@@ -19,10 +19,12 @@ use winapi::um::synchapi;
 use winapi::um::winnt;
 use winapi::Interface;
 
+use crate::{PhysicalDeviceProperties, DriverId};
+
 pub type Instance = WeakPtr<IMMDeviceEnumerator>;
 
 impl Instance {
-    pub unsafe fn create() -> Self {
+    pub unsafe fn create(name: &str) -> Self {
         CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED);
 
         let mut instance = Instance::null();
@@ -71,7 +73,7 @@ impl Instance {
         self.enumerate_physical_devices(eRender)
     }
 
-    pub unsafe fn create_device(&self, physical_device: PhysicalDevice) -> Device {
+    pub unsafe fn create_device(&self, physical_device: &PhysicalDevice) -> Device {
         let mut audio_client = WeakPtr::<IAudioClient>::null();
         dbg!(physical_device.Activate(
             &IAudioClient::uuidof(),
@@ -125,14 +127,11 @@ impl PhysicalDevice {
             name_os.into_string().unwrap()
         };
 
-        PhysicalDeviceProperties { device_name }
+        PhysicalDeviceProperties { device_name, driver_id: DriverId::Wasapi }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct PhysicalDeviceProperties {
-    pub device_name: String,
-}
+
 
 pub struct Device {
     client: WeakPtr<IAudioClient>,
