@@ -19,7 +19,7 @@ use winapi::um::synchapi;
 use winapi::um::winnt;
 use winapi::Interface;
 
-use crate::{PhysicalDeviceProperties, DriverId};
+use crate::{DriverId, PhysicalDeviceProperties, SharingModeFlags};
 
 pub type Instance = WeakPtr<IMMDeviceEnumerator>;
 
@@ -127,11 +127,13 @@ impl PhysicalDevice {
             name_os.into_string().unwrap()
         };
 
-        PhysicalDeviceProperties { device_name, driver_id: DriverId::Wasapi }
+        PhysicalDeviceProperties {
+            device_name,
+            driver_id: DriverId::Wasapi,
+            sharing: SharingModeFlags::Concurrent | SharingModeFlags::Exclusive,
+        }
     }
 }
-
-
 
 pub struct Device {
     client: WeakPtr<IAudioClient>,

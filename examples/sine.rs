@@ -1,5 +1,15 @@
 use norse_audir::wasapi;
 
+pub fn rem_euclid(lhs: f32, rhs: f32) -> f32 {
+        let r = lhs % rhs;
+        if r < 0.0 {
+            r + rhs.abs()
+        } else {
+            r
+        }
+    }
+
+
 fn main() {
     unsafe {
         let instance = wasapi::Instance::create("audir - sine");
@@ -21,7 +31,11 @@ fn main() {
         let stream = device.get_output_stream();
         device.start();
 
-        let mut total_frames = 0;
+        let frequency = 100.0;
+        let sample_rate = 48_000.0;
+        let num_channels = 2;
+        let cycle_step = frequency / sample_rate;
+        let mut cycle = 0.0;
 
         loop {
             let padding = device.get_current_padding();
@@ -29,16 +43,18 @@ fn main() {
             let num_frames = buffer_frames - padding;
             let raw_buffer = stream.acquire_buffer(num_frames, !0);
             let buffer =
-                std::slice::from_raw_parts_mut(raw_buffer as *mut f32, num_frames as usize / 4);
+                std::slice::from_raw_parts_mut(raw_buffer as *mut f32, num_frames as usize * num_channels);
 
-            for dt in 0..buffer.len() / 2 {
-                let frame_time = total_frames + dt;
-                let time = frame_time as f32 / 48_000.0;
-                let value = (100.0 * time).sin() * 0.2;
+            for dt in 0..num_frames {
+                let phase = 2.0 * std::f32::consts::PI * cycle;
+                let sample = phase.sin() * 0.5;
 
-                buffer[2 * dt as usize + 1] = value;
-                buffer[2 * dt as usize] = value;
+                buffer[num_channels * dt as usize] = sample;
+                buffer[num_channels * dt as usize + 1] = sample;
+
+                cycle = (cycle + cycle_step) % 1.0;
             }
+
             stream.submit_buffer(num_frames);
         }
     }

@@ -15,7 +15,7 @@ pub enum DriverId {
 
 bitflags::bitflags! {
     /// Physical Devices may support different resource access modi.
-    /// 
+    ///
     /// Other applications and instance may access the same physical device
     /// concurrently or the application requires exclusive access to the certain device.
     pub struct SharingModeFlags: u32 {
