@@ -8,6 +8,7 @@ use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 use std::ptr;
 use winapi::shared::devpkey::*;
+use winapi::shared::mmreg::*;
 use winapi::um::audioclient::*;
 use winapi::um::audiosessiontypes::*;
 use winapi::um::combaseapi::*;
@@ -19,24 +20,22 @@ use winapi::um::synchapi;
 use winapi::um::winnt;
 use winapi::Interface;
 
-use crate::{DriverId, PhysicalDeviceProperties, SharingModeFlags};
+use crate::{ChannelMask, DeviceProperties, DriverId, PhysicalDeviceProperties, SharingModeFlags};
 
 pub type Instance = WeakPtr<IMMDeviceEnumerator>;
 
 impl Instance {
-    pub unsafe fn create(name: &str) -> Self {
+    pub unsafe fn create(_name: &str) -> Self {
         CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED);
 
         let mut instance = Instance::null();
-        let hr = CoCreateInstance(
+        let _hr = CoCreateInstance(
             &CLSID_MMDeviceEnumerator,
             ptr::null_mut(),
             CLSCTX_ALL,
             &IMMDeviceEnumerator::uuidof(),
             instance.mut_void(),
         );
-
-        dbg!(hr);
         instance
     }
 
@@ -45,7 +44,7 @@ impl Instance {
 
         let collection = {
             let mut collection = DeviceCollection::null();
-            let hr =
+            let _hr =
                 self.EnumAudioEndpoints(ty, DEVICE_STATE_ACTIVE, collection.mut_void() as *mut _);
             collection
         };
@@ -60,7 +59,7 @@ impl Instance {
             .map(|i| {
                 let mut device = PhysicalDevice::null();
                 collection.Item(i, device.mut_void() as *mut _);
-                dbg!(device)
+                device
             })
             .collect()
     }
@@ -75,25 +74,25 @@ impl Instance {
 
     pub unsafe fn create_device(&self, physical_device: &PhysicalDevice) -> Device {
         let mut audio_client = WeakPtr::<IAudioClient>::null();
-        dbg!(physical_device.Activate(
+        physical_device.Activate(
             &IAudioClient::uuidof(),
             CLSCTX_ALL,
             ptr::null_mut(),
-            audio_client.mut_void() as *mut _
-        ));
+            audio_client.mut_void() as *mut _,
+        );
         let mut mix_format = ptr::null_mut();
         audio_client.GetMixFormat(&mut mix_format);
-        dbg!(audio_client.Initialize(
+        audio_client.Initialize(
             AUDCLNT_SHAREMODE_SHARED,
             AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
             0,
             0,
             mix_format,
-            ptr::null()
-        ));
+            ptr::null(),
+        );
 
         let fence = Fence::create(false, false);
-        dbg!(audio_client.SetEventHandle(fence.0));
+        audio_client.SetEventHandle(fence.0);
 
         Device {
             client: audio_client,
@@ -130,7 +129,7 @@ impl PhysicalDevice {
         PhysicalDeviceProperties {
             device_name,
             driver_id: DriverId::Wasapi,
-            sharing: SharingModeFlags::Concurrent | SharingModeFlags::Exclusive,
+            sharing: SharingModeFlags::CONCURRENT | SharingModeFlags::EXCLUSIVE,
         }
     }
 }
@@ -143,9 +142,8 @@ pub struct Device {
 impl Device {
     pub unsafe fn get_output_stream(&self) -> OutputStream {
         let mut client = WeakPtr::<IAudioRenderClient>::null();
-        dbg!(self
-            .client
-            .GetService(&IAudioRenderClient::uuidof(), client.mut_void() as *mut _));
+        self.client
+            .GetService(&IAudioRenderClient::uuidof(), client.mut_void() as *mut _);
 
         OutputStream {
             client,
@@ -153,10 +151,40 @@ impl Device {
         }
     }
 
-    pub unsafe fn get_buffer_frames(&self) -> u32 {
-        let mut size = 0;
-        self.client.GetBufferSize(&mut size);
-        size as _
+    pub unsafe fn properties(&self) -> DeviceProperties {
+        let buffer_size = {
+            let mut size = 0;
+            self.client.GetBufferSize(&mut size);
+            size as _
+        };
+
+        let mut mix_format = ptr::null_mut();
+        self.client.GetMixFormat(&mut mix_format);
+
+        match (*mix_format).wFormatTag {
+            WAVE_FORMAT_EXTENSIBLE => {
+                let format = &*(mix_format as *const WAVEFORMATEXTENSIBLE);
+
+                let mut channel_mask = ChannelMask::empty();
+                if format.dwChannelMask & SPEAKER_FRONT_LEFT != 0 {
+                    channel_mask |= ChannelMask::FRONT_LEFT;
+                }
+                if format.dwChannelMask & SPEAKER_FRONT_RIGHT != 0 {
+                    channel_mask |= ChannelMask::FRONT_RIGHT;
+                }
+                if format.dwChannelMask & SPEAKER_FRONT_CENTER != 0 {
+                    channel_mask |= ChannelMask::FRONT_CENTER;
+                }
+                // TODO: more channels
+
+                DeviceProperties {
+                    num_channels: (*mix_format).nChannels as _,
+                    channel_mask,
+                    buffer_size,
+                }
+            }
+            _ => unimplemented!(),
+        }
     }
 
     pub unsafe fn get_current_padding(&self) -> u32 {
@@ -166,7 +194,11 @@ impl Device {
     }
 
     pub unsafe fn start(&self) {
-        dbg!(self.client.Start());
+        self.client.Start();
+    }
+
+    pub unsafe fn stop(&self) {
+        self.client.Stop();
     }
 }
 

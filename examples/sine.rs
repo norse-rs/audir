@@ -17,15 +17,17 @@ fn main() {
         }
 
         let device = instance.create_device(&output_devices[0]);
-        let buffer_frames = dbg!(device.get_buffer_frames());
+        let properties = dbg!(device.properties());
+        let buffer_frames = properties.buffer_size;
         let stream = device.get_output_stream();
-        device.start();
 
         let frequency = 100.0;
         let sample_rate = 48_000.0;
-        let num_channels = 2;
+        let num_channels = properties.num_channels;
         let cycle_step = frequency / sample_rate;
         let mut cycle = 0.0;
+
+        device.start();
 
         loop {
             let padding = device.get_current_padding();

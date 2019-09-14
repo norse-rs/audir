@@ -19,10 +19,20 @@ bitflags::bitflags! {
     /// Other applications and instance may access the same physical device
     /// concurrently or the application requires exclusive access to the certain device.
     pub struct SharingModeFlags: u32 {
-        const Exclusive = 0b01;
-        const Concurrent = 0b10;
+        const EXCLUSIVE = 0b01;
+        const CONCURRENT = 0b10;
     }
 }
+
+bitflags::bitflags! {
+    pub struct ChannelMask: u32 {
+        const FRONT_LEFT = 0b0001;
+        const FRONT_RIGHT = 0b0010;
+        const FRONT_CENTER = 0b0100;
+    }
+}
+
+pub type Frames = u32;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalDeviceProperties {
@@ -38,12 +48,6 @@ pub enum Format {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum Channel {
-    FrontLeft,
-    FrontRight,
-}
-
-#[derive(Debug, Copy, Clone)]
 pub struct SampleDesc {
     pub format: Format,
     pub channels: usize,
@@ -52,6 +56,7 @@ pub struct SampleDesc {
 
 #[derive(Debug, Clone)]
 pub struct DeviceProperties {
-    pub channels: Vec<Channel>,
-    pub buffer_size: u32,
+    pub num_channels: usize,
+    pub channel_mask: ChannelMask,
+    pub buffer_size: Frames,
 }

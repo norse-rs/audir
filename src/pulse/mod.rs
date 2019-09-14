@@ -38,7 +38,7 @@ impl PhysicalDevice {
         PhysicalDeviceProperties {
             device_name: self.name.clone(),
             driver_id: DriverId::PulseAudio,
-            sharing: SharingModeFlags::Concurrent,
+            sharing: SharingModeFlags::CONCURRENT,
         }
     }
 }
