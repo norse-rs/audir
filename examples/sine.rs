@@ -1,15 +1,5 @@
 use norse_audir::wasapi;
 
-pub fn rem_euclid(lhs: f32, rhs: f32) -> f32 {
-        let r = lhs % rhs;
-        if r < 0.0 {
-            r + rhs.abs()
-        } else {
-            r
-        }
-    }
-
-
 fn main() {
     unsafe {
         let instance = wasapi::Instance::create("audir - sine");
