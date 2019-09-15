@@ -13,6 +13,4 @@ bitflags = "1"
 winapi = { version = "0.3", features = ["debug", "ksmedia", "audioclient", "combaseapi", "coml2api", "devpkey", "mmdeviceapi", "objbase", "unknwnbase", "winerror", "synchapi"] }
 
 [target.'cfg(unix)'.dependencies]
-alsa = "0.3"
-alsa-sys = "0.1"
 libpulse-sys = "1.9"

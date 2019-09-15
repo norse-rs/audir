@@ -2,9 +2,6 @@
 pub mod wasapi;
 
 #[cfg(unix)]
-pub mod alsa;
-
-#[cfg(unix)]
 pub mod pulse;
 
 #[derive(Debug, Clone, Copy)]
