@@ -191,7 +191,7 @@ impl Device {
     }
 
     pub unsafe fn properties(&self) -> DeviceProperties {
-        let buffer_attrs = unsafe { &*pulse::pa_stream_get_buffer_attr(self.stream) };
+        let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(self.stream);
         dbg!((
             buffer_attrs.minreq,
             buffer_attrs.maxlength,
@@ -213,6 +213,35 @@ pub struct OutputStream {
 }
 
 impl OutputStream {
+    pub unsafe fn set_callback<F>(&self, callback: F)
+    where
+        F: FnMut(*mut (), usize),
+    {
+        let callback = Box::new(callback);
+        extern "C" fn write_cb<F>(stream: *mut pulse::pa_stream, len: usize, user: *mut c_void)
+            where
+            F: FnMut(*mut (), usize),
+        {
+            unsafe {
+                let mut num_bytes = pulse::pa_stream_writable_size(stream);
+                while num_bytes > 0 {
+                    let mut data = ptr::null_mut();
+                    let mut size = num_bytes as usize;
+                    pulse::pa_stream_begin_write(stream, &mut data, &mut size);
+                    (&mut *(user as *mut F))(data as *mut _, size);
+                    pulse::pa_stream_write(stream, data, size, None, 0, pulse::PA_SEEK_RELATIVE);
+                    num_bytes -= size;
+                }
+            }
+        }
+
+        dbg!(pulse::pa_stream_set_write_callback(
+            self.stream,
+            Some(write_cb::<F>),
+            Box::into_raw(callback) as *mut _, // TODO: free!?
+        ));
+    }
+
     pub unsafe fn get_writeable_size(&self) -> u32 {
         unimplemented!()
     }
