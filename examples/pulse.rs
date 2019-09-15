@@ -1,4 +1,3 @@
-
 use libpulse_sys as pulse;
 use norse_audir as audir;
 
@@ -20,11 +19,14 @@ fn main() {
             println!("{:#?}", device.get_properties());
         }
 
-        let device = instance.create_device(&output_devices[0], audir::SampleDesc {
-            format: audir::Format::F32,
-            channels: 2,
-            sample_rate: 44_100,
-        });
+        let device = instance.create_device(
+            &output_devices[0],
+            audir::SampleDesc {
+                format: audir::Format::F32,
+                channels: 2,
+                sample_rate: 44_100,
+            },
+        );
         let device_properties = device.properties();
 
         let mut stream = device.get_output_stream();
@@ -34,8 +36,7 @@ fn main() {
         loop {
             let raw_buffer = stream.acquire_buffer(size, !0);
 
-            let buffer =
-                std::slice::from_raw_parts_mut(raw_buffer as *mut f32, size as usize / 4);
+            let buffer = std::slice::from_raw_parts_mut(raw_buffer as *mut f32, size as usize / 4);
 
             for dt in 0..buffer.len() / 2 {
                 let frame_time = total_frames + dt;

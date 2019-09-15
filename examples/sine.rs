@@ -34,8 +34,10 @@ fn main() {
 
             let num_frames = buffer_frames - padding;
             let raw_buffer = stream.acquire_buffer(num_frames, !0);
-            let buffer =
-                std::slice::from_raw_parts_mut(raw_buffer as *mut f32, num_frames as usize * num_channels);
+            let buffer = std::slice::from_raw_parts_mut(
+                raw_buffer as *mut f32,
+                num_frames as usize * num_channels,
+            );
 
             for dt in 0..num_frames {
                 let phase = 2.0 * std::f32::consts::PI * cycle;

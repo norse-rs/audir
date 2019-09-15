@@ -1,0 +1,58 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: Build - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+
+    - name: Install stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Install components
+      run: rustup component add --toolchain stable rustfmt clippy
+
+    - name: Fetch
+      uses: actions-rs/cargo@v1
+      with:
+        command: fetch
+
+    - name: Check
+      uses: actions-rs/cargo@v1
+      with:
+        command: check
+
+    - name: Format
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        arguments: --all -- --check
+
+    - name: Clippy
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        arguments: -- -D warnings
+
+    - name: Test (Check)
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        arguments: --no-run
+
+    - name: Test (Run)
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        arguments: --no-fail-fast

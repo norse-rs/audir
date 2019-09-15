@@ -19,15 +19,15 @@ impl<T> WeakPtr<T> {
         WeakPtr(raw)
     }
 
-    pub fn is_null(&self) -> bool {
+    pub fn is_null(self) -> bool {
         self.0.is_null()
     }
 
-    pub fn as_ptr(&self) -> *const T {
+    pub fn as_ptr(self) -> *const T {
         self.0
     }
 
-    pub fn as_mut_ptr(&self) -> *mut T {
+    pub fn as_mut_ptr(self) -> *mut T {
         self.0
     }
 
@@ -43,7 +43,7 @@ impl<T: Interface> WeakPtr<T> {
     }
 
     // Cast creates a new WeakPtr requiring explicit destroy call.
-    pub unsafe fn cast<U>(&self) -> WasapiResult<WeakPtr<U>>
+    pub unsafe fn cast<U>(self) -> WasapiResult<WeakPtr<U>>
     where
         U: Interface,
     {
@@ -56,7 +56,7 @@ impl<T: Interface> WeakPtr<T> {
 
     // Destroying one instance of the WeakPtr will invalidate all
     // copies and clones.
-    pub unsafe fn destroy(&self) {
+    pub unsafe fn destroy(self) {
         self.as_unknown().Release();
     }
 }

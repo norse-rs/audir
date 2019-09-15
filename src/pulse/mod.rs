@@ -1,10 +1,17 @@
+use crate::{
+    DeviceProperties, DriverId, Format, PhysicalDeviceProperties, SampleDesc, SharingModeFlags,
+};
 use libpulse_sys as pulse;
-use std::ptr;
 use std::ffi::c_void;
 use std::ffi::CStr;
-use crate::{SharingModeFlags, DriverId, PhysicalDeviceProperties, DeviceProperties, Format, SampleDesc};
+use std::ptr;
 
-extern "C" fn sink_info_cb(context: *mut pulse::pa_context, info: *const pulse::pa_sink_info, _: i32, user: *mut c_void) {
+extern "C" fn sink_info_cb(
+    context: *mut pulse::pa_context,
+    info: *const pulse::pa_sink_info,
+    _: i32,
+    user: *mut c_void,
+) {
     if info.is_null() {
         return;
     }
@@ -13,11 +20,20 @@ extern "C" fn sink_info_cb(context: *mut pulse::pa_context, info: *const pulse::
     let physical_devices = unsafe { &mut *(user as *mut Vec<PhysicalDevice>) };
 
     physical_devices.push(PhysicalDevice {
-        name: unsafe { CStr::from_ptr(info.description).to_string_lossy().into_owned() },
+        name: unsafe {
+            CStr::from_ptr(info.description)
+                .to_string_lossy()
+                .into_owned()
+        },
     });
 }
 
-extern "C" fn source_info_cb(context: *mut pulse::pa_context, info: *const pulse::pa_source_info, _: i32, user: *mut c_void) {
+extern "C" fn source_info_cb(
+    context: *mut pulse::pa_context,
+    info: *const pulse::pa_source_info,
+    _: i32,
+    user: *mut c_void,
+) {
     if info.is_null() {
         return;
     }
@@ -25,7 +41,11 @@ extern "C" fn source_info_cb(context: *mut pulse::pa_context, info: *const pulse
     let info = unsafe { &*info };
     let physical_devices = unsafe { &mut *(user as *mut Vec<PhysicalDevice>) };
     physical_devices.push(PhysicalDevice {
-        name: unsafe { CStr::from_ptr(info.description).to_string_lossy().into_owned() },
+        name: unsafe {
+            CStr::from_ptr(info.description)
+                .to_string_lossy()
+                .into_owned()
+        },
     });
 }
 
@@ -71,10 +91,7 @@ impl Instance {
             }
         }
 
-        Instance {
-            mainloop,
-            context,
-        }
+        Instance { mainloop, context }
     }
 
     unsafe fn await_operation(&self, operation: *mut pulse::pa_operation) {
@@ -90,25 +107,42 @@ impl Instance {
 
     pub unsafe fn enumerate_physical_output_devices(&self) -> Vec<PhysicalDevice> {
         let mut physical_devices = Vec::new();
-        let operation = pulse::pa_context_get_sink_info_list(self.context, Some(sink_info_cb), &mut physical_devices as *mut _ as _);
+        let operation = pulse::pa_context_get_sink_info_list(
+            self.context,
+            Some(sink_info_cb),
+            &mut physical_devices as *mut _ as _,
+        );
         self.await_operation(operation);
         physical_devices
     }
 
     pub unsafe fn enumerate_physical_input_devices(&self) -> Vec<PhysicalDevice> {
         let mut physical_devices = Vec::new();
-        let operation = pulse::pa_context_get_source_info_list(self.context, Some(source_info_cb), &mut physical_devices as *mut _ as _);
+        let operation = pulse::pa_context_get_source_info_list(
+            self.context,
+            Some(source_info_cb),
+            &mut physical_devices as *mut _ as _,
+        );
         self.await_operation(operation);
         physical_devices
     }
 
-    pub unsafe fn create_device(&self, physical_device: &PhysicalDevice, sample_desc: SampleDesc) -> Device {
+    pub unsafe fn create_device(
+        &self,
+        physical_device: &PhysicalDevice,
+        sample_desc: SampleDesc,
+    ) -> Device {
         let spec = pulse::pa_sample_spec {
             format: map_format(sample_desc.format),
             channels: sample_desc.channels as _,
             rate: sample_desc.sample_rate as _,
         };
-        let stream = dbg!(pulse::pa_stream_new(self.context, b"audir\0".as_ptr() as _, &spec, ptr::null())); // TODO: name, channel map
+        let stream = dbg!(pulse::pa_stream_new(
+            self.context,
+            b"audir\0".as_ptr() as _,
+            &spec,
+            ptr::null()
+        )); // TODO: name, channel map
 
         let attribs = pulse::pa_buffer_attr {
             maxlength: !0,
@@ -118,7 +152,14 @@ impl Instance {
             fragsize: !0,
         };
 
-        pulse::pa_stream_connect_playback(stream, ptr::null(), &attribs, 0, ptr::null(), ptr::null_mut());
+        pulse::pa_stream_connect_playback(
+            stream,
+            ptr::null(),
+            &attribs,
+            0,
+            ptr::null(),
+            ptr::null_mut(),
+        );
         loop {
             let state = pulse::pa_stream_get_state(stream);
             if state == pulse::PA_STREAM_READY {
@@ -150,7 +191,11 @@ impl Device {
 
     pub unsafe fn properties(&self) -> DeviceProperties {
         let buffer_attrs = unsafe { &*pulse::pa_stream_get_buffer_attr(self.stream) };
-        dbg!((buffer_attrs.minreq, buffer_attrs.maxlength, buffer_attrs.tlength));
+        dbg!((
+            buffer_attrs.minreq,
+            buffer_attrs.maxlength,
+            buffer_attrs.tlength
+        ));
 
         DeviceProperties {
             channels: Vec::new(),
@@ -190,7 +235,14 @@ impl OutputStream {
     }
 
     pub unsafe fn submit_buffer(&self, len: u32) {
-        pulse::pa_stream_write(self.stream, self.cur_buffer, len as _, None, 0, pulse::PA_SEEK_RELATIVE);
+        pulse::pa_stream_write(
+            self.stream,
+            self.cur_buffer,
+            len as _,
+            None,
+            0,
+            pulse::PA_SEEK_RELATIVE,
+        );
         pulse::pa_mainloop_iterate(self.mainloop, false as _, ptr::null_mut());
     }
 }
