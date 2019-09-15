@@ -1,5 +1,6 @@
 use crate::{
-    DeviceProperties, DriverId, Format, PhysicalDeviceProperties, SampleDesc, SharingModeFlags,
+    ChannelMask, DeviceProperties, DriverId, Format, PhysicalDeviceProperties, SampleDesc,
+    SharingModeFlags,
 };
 use libpulse_sys as pulse;
 use std::ffi::c_void;
@@ -198,7 +199,8 @@ impl Device {
         ));
 
         DeviceProperties {
-            channels: Vec::new(),
+            num_channels: 0,                    // TODO
+            channel_mask: ChannelMask::empty(), // TODO
             buffer_size: buffer_attrs.minreq,
         }
     }
