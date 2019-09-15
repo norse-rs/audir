@@ -44,15 +44,3 @@ jobs:
       with:
         command: clippy
         arguments: -- -D warnings
-
-    - name: Test (Check)
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        arguments: --no-run
-
-    - name: Test (Run)
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        arguments: --no-fail-fast
