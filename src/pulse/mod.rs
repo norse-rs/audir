@@ -145,30 +145,6 @@ impl Instance {
             ptr::null()
         )); // TODO: name, channel map
 
-        let attribs = pulse::pa_buffer_attr {
-            maxlength: !0,
-            tlength: !0,
-            prebuf: !0,
-            minreq: !0,
-            fragsize: !0,
-        };
-
-        pulse::pa_stream_connect_playback(
-            stream,
-            ptr::null(),
-            &attribs,
-            0,
-            ptr::null(),
-            ptr::null_mut(),
-        );
-        loop {
-            let state = pulse::pa_stream_get_state(stream);
-            if state == pulse::PA_STREAM_READY {
-                break;
-            }
-            pulse::pa_mainloop_iterate(self.mainloop, true as _, ptr::null_mut());
-        }
-
         Device {
             mainloop: self.mainloop,
             stream,
@@ -182,12 +158,74 @@ pub struct Device {
 }
 
 impl Device {
-    pub unsafe fn get_output_stream(&self) -> OutputStream {
+    unsafe fn create_output_stream(&self) -> OutputStream {
+        let attribs = pulse::pa_buffer_attr {
+            maxlength: !0,
+            tlength: !0,
+            prebuf: !0,
+            minreq: !0,
+            fragsize: !0,
+        };
+
+        dbg!(pulse::pa_stream_connect_playback(
+            self.stream,
+            ptr::null(),
+            &attribs,
+            0,
+            ptr::null(),
+            ptr::null_mut(),
+        ));
+        loop {
+            let state = dbg!(pulse::pa_stream_get_state(self.stream));
+            if state == pulse::PA_STREAM_READY {
+                break;
+            }
+            pulse::pa_mainloop_iterate(self.mainloop, true as _, ptr::null_mut());
+        }
+
         OutputStream {
             mainloop: self.mainloop,
             stream: self.stream,
             cur_buffer: ptr::null_mut(),
         }
+    }
+
+    pub unsafe fn output_stream<F>(&self, callback: Option<F>) -> OutputStream
+    where
+        F: FnMut(*mut (), usize),
+    {
+        if let Some(callback) = callback {
+            let callback = Box::new(callback);
+            extern "C" fn write_cb<F>(stream: *mut pulse::pa_stream, len: usize, user: *mut c_void)
+            where
+                F: FnMut(*mut (), usize),
+            {
+                unsafe {
+                    let mut num_bytes = pulse::pa_stream_writable_size(stream);
+                    while num_bytes > 0 {
+                        let mut data = ptr::null_mut();
+                        let mut size = num_bytes as usize;
+                        pulse::pa_stream_begin_write(stream, &mut data, &mut size);
+                        (&mut *(user as *mut F))(data as *mut _, size);
+                        pulse::pa_stream_write(stream, data, size, None, 0, pulse::PA_SEEK_RELATIVE);
+                        num_bytes -= size;
+                    }
+                }
+            }
+
+            pulse::pa_stream_set_write_callback(
+                self.stream,
+                Some(write_cb::<F>),
+                Box::into_raw(callback) as *mut _, // TODO: free!?
+            );
+        }
+
+        self.create_output_stream()
+    }
+
+    pub unsafe fn polled_output_stream(&self) -> OutputStream
+    {
+        self.create_output_stream()
     }
 
     pub unsafe fn properties(&self) -> DeviceProperties {
@@ -213,35 +251,6 @@ pub struct OutputStream {
 }
 
 impl OutputStream {
-    pub unsafe fn set_callback<F>(&self, callback: F)
-    where
-        F: FnMut(*mut (), usize),
-    {
-        let callback = Box::new(callback);
-        extern "C" fn write_cb<F>(stream: *mut pulse::pa_stream, len: usize, user: *mut c_void)
-            where
-            F: FnMut(*mut (), usize),
-        {
-            unsafe {
-                let mut num_bytes = pulse::pa_stream_writable_size(stream);
-                while num_bytes > 0 {
-                    let mut data = ptr::null_mut();
-                    let mut size = num_bytes as usize;
-                    pulse::pa_stream_begin_write(stream, &mut data, &mut size);
-                    (&mut *(user as *mut F))(data as *mut _, size);
-                    pulse::pa_stream_write(stream, data, size, None, 0, pulse::PA_SEEK_RELATIVE);
-                    num_bytes -= size;
-                }
-            }
-        }
-
-        dbg!(pulse::pa_stream_set_write_callback(
-            self.stream,
-            Some(write_cb::<F>),
-            Box::into_raw(callback) as *mut _, // TODO: free!?
-        ));
-    }
-
     pub unsafe fn get_writeable_size(&self) -> u32 {
         unimplemented!()
     }
@@ -274,6 +283,10 @@ impl OutputStream {
             0,
             pulse::PA_SEEK_RELATIVE,
         );
+        self.flush();
+    }
+
+    pub unsafe fn flush(&self) {
         pulse::pa_mainloop_iterate(self.mainloop, false as _, ptr::null_mut());
     }
 }
