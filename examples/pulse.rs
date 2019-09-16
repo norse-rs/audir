@@ -27,32 +27,15 @@ fn main() {
                 sample_rate: 44_100,
             },
         );
-        
+
         let frequency = 100.0;
         let sample_rate = 44_100.0;
         let num_channels = 2;
         let cycle_step = frequency / sample_rate;
         let mut cycle = 0.0;
 
-        // let mut stream = device.output_stream(Some(|data, len| {
-        //     let buffer = std::slice::from_raw_parts_mut(data as *mut f32, len as usize / 4);
-
-        //     for dt in 0..buffer.len() / 2 {
-        //         let phase = 2.0 * std::f32::consts::PI * cycle;
-        //         let sample = phase.sin() * 0.5;
-
-        //         buffer[num_channels * dt as usize] = sample;
-        //         buffer[num_channels * dt as usize + 1] = sample;
-
-        //         cycle = (cycle + cycle_step) % 1.0;
-        //     }
-        // }));
-        // loop {
-        //     stream.flush();
-        // }
-
         let mut stream = device.polled_output_stream();
-        let device_properties = device.properties(); // TODO: stream properties        
+        let device_properties = device.properties();
         let size = device_properties.buffer_size;
         loop {
             let raw_buffer = stream.acquire_buffer(size, !0);
