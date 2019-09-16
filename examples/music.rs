@@ -50,8 +50,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
             );
 
             for dt in 0..num_channels * num_frames as usize {
-                sample = (sample + 1) % samples.len();
                 buffer[dt as usize] = samples[sample];
+                sample = (sample + 1) % samples.len();
             }
 
             stream.submit_buffer(num_frames);
