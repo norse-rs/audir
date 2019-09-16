@@ -1,8 +1,11 @@
 #[cfg(windows)]
 pub mod wasapi;
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub mod pulse;
+
+#[cfg(target_os = "macos")]
+pub mod coreaudio;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DriverId {
