@@ -1,6 +1,6 @@
 use crate::{DeviceProperties, SampleDesc};
 use coreaudio_sys as ca;
-use std::ptr;
+use std::{mem, ptr};
 
 unsafe fn get_property_data(
     id: ca::AudioObjectID,
@@ -72,7 +72,7 @@ impl Instance {
         };
 
         audio_objects.iter().filter_map(|device| {
-            if get_property_data_size(device, &address) > 0 {
+            if get_property_data_size(*device, &address) > 0 {
                 Some(PhysicalDevice)
             } else {
                 None
@@ -89,7 +89,7 @@ impl Instance {
         };
 
         audio_objects.iter().filter_map(|device| {
-            if get_property_data_size(device, &address) > 0 {
+            if get_property_data_size(*device, &address) > 0 {
                 Some(PhysicalDevice)
             } else {
                 None
