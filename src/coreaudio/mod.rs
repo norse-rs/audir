@@ -54,11 +54,11 @@ impl Instance {
         };
 
         let id = ca::kAudioObjectSystemObject;
-        let size = get_property_data_size(id, &address);
+        let size = get_property_data_size(id, &address) as usize;
         let num_elements = size / mem::size_of::<ca::AudioObjectID>();
         let mut data = Vec::with_capacity(num_elements);
         data.set_len(num_elements);
-        get_property_data(id, &address, data.as_mut_ptr() as _, size);
+        get_property_data(id, &address, data.as_mut_ptr() as _, size as u32);
 
         data
     }
