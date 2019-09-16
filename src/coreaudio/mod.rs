@@ -65,14 +65,36 @@ impl Instance {
 
     pub unsafe fn enumerate_physical_output_devices(&self) -> Vec<PhysicalDevice> {
         let audio_objects = self.enumerate_physical_devices();
+        let address = ca::AudioObjectPropertyAddress {
+            mElement: ca::kAudioObjectPropertyElementMaster,
+            mScope: ca::kAudioObjectPropertyScopeOutput,
+            mSelector: ca::kAudioDevicePropertyStreams,
+        };
 
-        unimplemented!()
+        audio_objects.iter().filter_map(|device| {
+            if get_property_data_size(device, &address) > 0 {
+                Some(PhysicalDevice)
+            } else {
+                None
+            }
+        }).collect()
     }
 
     pub unsafe fn enumerate_physical_input_devices(&self) -> Vec<PhysicalDevice> {
         let audio_objects = self.enumerate_physical_devices();
+        let address = ca::AudioObjectPropertyAddress {
+            mElement: ca::kAudioObjectPropertyElementMaster,
+            mScope: ca::kAudioObjectPropertyScopeInput,
+            mSelector: ca::kAudioDevicePropertyStreams,
+        };
 
-        unimplemented!()
+        audio_objects.iter().filter_map(|device| {
+            if get_property_data_size(device, &address) > 0 {
+                Some(PhysicalDevice)
+            } else {
+                None
+            }
+        }).collect()
     }
 
     pub unsafe fn create_device(
