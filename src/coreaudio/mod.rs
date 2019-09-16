@@ -9,14 +9,8 @@ unsafe fn get_property_data(
     len: u32,
 ) -> u32 {
     let mut size = len;
-    let status = ca::AudioObjectGetPropertyData(
-        id,
-        address,
-        0,
-        ptr::null_mut(),
-        &mut size,
-        data as _,
-    );
+    let status =
+        ca::AudioObjectGetPropertyData(id, address, 0, ptr::null_mut(), &mut size, data as _);
     assert_eq!(status, 0);
 
     size
@@ -27,13 +21,7 @@ unsafe fn get_property_data_size(
     address: &ca::AudioObjectPropertyAddress,
 ) -> u32 {
     let mut size = 0;
-    let status = ca::AudioObjectGetPropertyDataSize(
-        id,
-        address,
-        0,
-        ptr::null_mut(),
-        &mut size
-    );
+    let status = ca::AudioObjectGetPropertyDataSize(id, address, 0, ptr::null_mut(), &mut size);
     assert_eq!(status, 0);
 
     size
@@ -43,7 +31,7 @@ pub struct Instance {}
 
 impl Instance {
     pub unsafe fn create(_name: &str) -> Self {
-        Instance { }
+        Instance {}
     }
 
     unsafe fn enumerate_physical_devices(&self) -> Vec<ca::AudioObjectID> {
@@ -71,13 +59,16 @@ impl Instance {
             mSelector: ca::kAudioDevicePropertyStreams,
         };
 
-        audio_objects.iter().filter_map(|device| {
-            if get_property_data_size(*device, &address) > 0 {
-                Some(PhysicalDevice)
-            } else {
-                None
-            }
-        }).collect()
+        audio_objects
+            .iter()
+            .filter_map(|device| {
+                if get_property_data_size(*device, &address) > 0 {
+                    Some(PhysicalDevice)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     pub unsafe fn enumerate_physical_input_devices(&self) -> Vec<PhysicalDevice> {
@@ -88,13 +79,16 @@ impl Instance {
             mSelector: ca::kAudioDevicePropertyStreams,
         };
 
-        audio_objects.iter().filter_map(|device| {
-            if get_property_data_size(*device, &address) > 0 {
-                Some(PhysicalDevice)
-            } else {
-                None
-            }
-        }).collect()
+        audio_objects
+            .iter()
+            .filter_map(|device| {
+                if get_property_data_size(*device, &address) > 0 {
+                    Some(PhysicalDevice)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     pub unsafe fn create_device(

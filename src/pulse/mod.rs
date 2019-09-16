@@ -158,8 +158,7 @@ pub struct Device {
 }
 
 impl Device {
-    pub unsafe fn polled_output_stream(&self) -> OutputStream
-    {
+    pub unsafe fn polled_output_stream(&self) -> OutputStream {
         // TODO
         let attribs = pulse::pa_buffer_attr {
             maxlength: !0,
@@ -233,7 +232,11 @@ impl OutputStream {
 
         let mut data = ptr::null_mut();
         let mut size = len as usize;
-        dbg!(pulse::pa_stream_begin_write(self.stream, &mut data, &mut size));
+        dbg!(pulse::pa_stream_begin_write(
+            self.stream,
+            &mut data,
+            &mut size
+        ));
         assert_eq!(size, len as usize);
         self.cur_buffer = data;
         data as _

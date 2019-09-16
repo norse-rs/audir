@@ -10,7 +10,7 @@ edition = "2018"
 bitflags = "1"
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["debug", "ksmedia", "audioclient", "combaseapi", "coml2api", "devpkey", "mmdeviceapi", "objbase", "unknwnbase", "winerror", "synchapi"] }
+winapi = { version = "0.3.8", features = ["debug", "ksmedia", "audioclient", "combaseapi", "coml2api", "devpkey", "mmdeviceapi", "objbase", "unknwnbase", "winerror", "synchapi"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libpulse-sys = "1.9"

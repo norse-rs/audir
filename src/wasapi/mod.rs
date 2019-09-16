@@ -4,9 +4,7 @@ pub use winapi::shared::winerror::HRESULT;
 pub type WasapiResult<T> = (T, HRESULT);
 
 use com::WeakPtr;
-use std::ffi::OsString;
-use std::os::windows::ffi::OsStringExt;
-use std::ptr;
+use std::{ffi::OsString, mem, os::windows::ffi::OsStringExt, ptr, slice};
 use winapi::shared::devpkey::*;
 use winapi::shared::mmreg::*;
 use winapi::um::audioclient::*;
@@ -111,19 +109,18 @@ impl PhysicalDevice {
         self.OpenPropertyStore(STGM_READ, store.mut_void() as *mut _);
 
         let device_name = {
-            let mut value = std::mem::uninitialized();
+            let mut value = mem::uninitialized();
             store.GetValue(
                 &DEVPKEY_Device_FriendlyName as *const _ as *const _,
                 &mut value,
             );
-            let utf16 = *(value.data.as_ptr() as *const usize) as *const u16;
+            let os_str = *value.data.pwszVal();
             let mut len = 0;
-            while *utf16.offset(len) != 0 {
+            while *os_str.offset(len) != 0 {
                 len += 1;
             }
-            let name_os: OsString =
-                OsStringExt::from_wide(std::slice::from_raw_parts(utf16, len as _));
-            name_os.into_string().unwrap()
+            let name: OsString = OsStringExt::from_wide(slice::from_raw_parts(os_str, len as _));
+            name.into_string().unwrap()
         };
 
         PhysicalDeviceProperties {

@@ -1,16 +1,19 @@
-use norse_audir::wasapi;
-use std::fs::File;
-use std::env;
 use lewton::inside_ogg::OggStreamReader;
+use norse_audir::wasapi;
+use std::env;
+use std::fs::File;
 
 fn main() -> Result<(), Box<std::error::Error>> {
-    let file_path = env::args().nth(1).expect("No arg found. Please specify a file to open.");
+    let file_path = env::args()
+        .nth(1)
+        .expect("No arg found. Please specify a file to open.");
     let file = File::open(file_path).expect("Can't open file");
     let mut ogg_stream = OggStreamReader::new(file)?;
 
     let mut samples = Vec::new();
     loop {
-        let data: Option<lewton::samples::InterleavedSamples<f32>> = ogg_stream.read_dec_packet_generic()?;
+        let data: Option<lewton::samples::InterleavedSamples<f32>> =
+            ogg_stream.read_dec_packet_generic()?;
         match data {
             Some(data) => {
                 samples.extend(data.samples);
@@ -46,7 +49,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 num_frames as usize * num_channels,
             );
 
-            for dt in 0..num_channels*num_frames as usize {
+            for dt in 0..num_channels * num_frames as usize {
                 sample = (sample + 1) % samples.len();
                 buffer[dt as usize] = samples[sample];
             }
