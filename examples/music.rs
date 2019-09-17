@@ -40,10 +40,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
         let mut sample = 0;
         loop {
-            let padding = device.get_current_padding();
-
-            let num_frames = buffer_frames - padding;
-            let raw_buffer = stream.acquire_buffer(num_frames, !0);
+            let (raw_buffer, num_frames) = stream.acquire_buffer(!0);
             let buffer = std::slice::from_raw_parts_mut(
                 raw_buffer as *mut f32,
                 num_frames as usize * num_channels,

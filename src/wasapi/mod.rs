@@ -18,7 +18,9 @@ use winapi::um::synchapi;
 use winapi::um::winnt;
 use winapi::Interface;
 
-use crate::{ChannelMask, DeviceProperties, DriverId, PhysicalDeviceProperties, SharingModeFlags};
+use crate::{
+    ChannelMask, DeviceProperties, DriverId, Frames, PhysicalDeviceProperties, SharingModeFlags,
+};
 
 pub type Instance = WeakPtr<IMMDeviceEnumerator>;
 
@@ -142,8 +144,16 @@ impl Device {
         self.client
             .GetService(&IAudioRenderClient::uuidof(), client.mut_void() as *mut _);
 
+        let buffer_size = {
+            let mut size = 0;
+            self.client.GetBufferSize(&mut size);
+            size
+        };
+
         OutputStream {
+            device: self.client,
             client,
+            buffer_size,
             fence: self.fence,
         }
     }
@@ -184,12 +194,6 @@ impl Device {
         }
     }
 
-    pub unsafe fn get_current_padding(&self) -> u32 {
-        let mut size = 0;
-        self.client.GetCurrentPadding(&mut size);
-        size as _
-    }
-
     pub unsafe fn start(&self) {
         self.client.Start();
     }
@@ -200,16 +204,24 @@ impl Device {
 }
 
 pub struct OutputStream {
+    device: WeakPtr<IAudioClient>,
     client: WeakPtr<IAudioRenderClient>,
+    buffer_size: u32,
     fence: Fence,
 }
 
 impl OutputStream {
-    pub unsafe fn acquire_buffer(&self, len: u32, timeout_ms: u32) -> *mut u8 {
+    pub unsafe fn acquire_buffer(&self, timeout_ms: u32) -> (*mut u8, Frames) {
         self.fence.wait(timeout_ms);
+
         let mut data = ptr::null_mut();
+        let mut padding = 0;
+
+        self.device.GetCurrentPadding(&mut padding);
+
+        let len = self.buffer_size - padding;
         self.client.GetBuffer(len, &mut data);
-        data
+        (data, len)
     }
 
     pub unsafe fn submit_buffer(&self, len: u32) {
