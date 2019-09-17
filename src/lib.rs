@@ -32,7 +32,7 @@ bitflags::bitflags! {
     }
 }
 
-pub type Frames = u32;
+pub type Frames = usize;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalDeviceProperties {

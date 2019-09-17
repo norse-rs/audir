@@ -1,7 +1,4 @@
-use libpulse_sys as pulse;
 use norse_audir as audir;
-
-use std::ptr;
 
 fn main() {
     unsafe {
@@ -35,14 +32,12 @@ fn main() {
         let mut cycle = 0.0;
 
         let mut stream = device.polled_output_stream();
-        let device_properties = device.properties();
-        let size = device_properties.buffer_size;
         loop {
-            let raw_buffer = stream.acquire_buffer(size, !0);
+            let (raw_buffer, num_frames) = stream.acquire_buffer(!0);
 
-            let buffer = std::slice::from_raw_parts_mut(raw_buffer as *mut f32, size as usize / 4);
+            let buffer = std::slice::from_raw_parts_mut(raw_buffer as *mut f32, num_frames * num_channels);
 
-            for dt in 0..buffer.len() / 2 {
+            for dt in 0..num_frames {
                 let phase = 2.0 * std::f32::consts::PI * cycle;
                 let sample = phase.sin() * 0.5;
 
@@ -52,7 +47,7 @@ fn main() {
                 cycle = (cycle + cycle_step) % 1.0;
             }
 
-            stream.submit_buffer(size);
+            stream.submit_buffer(num_frames);
         }
     }
 }

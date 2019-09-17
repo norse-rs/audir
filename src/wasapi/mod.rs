@@ -221,11 +221,11 @@ impl OutputStream {
 
         let len = self.buffer_size - padding;
         self.client.GetBuffer(len, &mut data);
-        (data, len)
+        (data, len as _)
     }
 
-    pub unsafe fn submit_buffer(&self, len: u32) {
-        self.client.ReleaseBuffer(len, 0);
+    pub unsafe fn submit_buffer(&self, num_frames: Frames) {
+        self.client.ReleaseBuffer(num_frames as _, 0);
     }
 }
 

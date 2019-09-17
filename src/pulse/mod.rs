@@ -1,6 +1,6 @@
 use crate::{
     ChannelMask, DeviceProperties, DriverId, Format, PhysicalDeviceProperties, SampleDesc,
-    SharingModeFlags,
+    SharingModeFlags, Frames,
 };
 use libpulse_sys as pulse;
 use std::ffi::c_void;
@@ -184,10 +184,15 @@ impl Device {
             pulse::pa_mainloop_iterate(self.mainloop, true as _, ptr::null_mut());
         }
 
+        let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
+        let sample_size = pulse::pa_sample_size(sample_spec);
+        let frame_size = sample_size * sample_spec.channels as usize;
+
         OutputStream {
             mainloop: self.mainloop,
             stream: self.stream,
             cur_buffer: ptr::null_mut(),
+            frame_size,
         }
     }
 
@@ -202,51 +207,46 @@ impl Device {
         DeviceProperties {
             num_channels: 0,                    // TODO
             channel_mask: ChannelMask::empty(), // TODO
-            buffer_size: buffer_attrs.minreq,
+            buffer_size: buffer_attrs.minreq as _,
         }
     }
 }
 
 pub struct OutputStream {
-    pub mainloop: *mut pulse::pa_mainloop,
-    pub stream: *mut pulse::pa_stream,
-    pub cur_buffer: *mut c_void,
+    mainloop: *mut pulse::pa_mainloop,
+    stream: *mut pulse::pa_stream,
+    cur_buffer: *mut c_void,
+    frame_size: usize,
 }
 
 impl OutputStream {
-    pub unsafe fn get_writeable_size(&self) -> u32 {
-        unimplemented!()
-    }
-
-    pub unsafe fn acquire_buffer(&mut self, len: u32, timeout_ms: u32) -> *mut u8 {
-        loop {
+    pub unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut u8, Frames) {
+        let mut size = loop {
             let size = pulse::pa_stream_writable_size(self.stream);
-            if size >= len as usize {
-                break;
+            if size > 0 {
+                break size;
             }
 
             pulse::pa_mainloop_prepare(self.mainloop, timeout_ms as _); // TODO: timeout
             pulse::pa_mainloop_poll(self.mainloop);
             pulse::pa_mainloop_dispatch(self.mainloop);
-        }
+        };
 
         let mut data = ptr::null_mut();
-        let mut size = len as usize;
-        dbg!(pulse::pa_stream_begin_write(
+        pulse::pa_stream_begin_write(
             self.stream,
             &mut data,
             &mut size
-        ));
-        assert_eq!(size, len as usize);
+        );
         self.cur_buffer = data;
-        data as _
+        (data as _, (size / self.frame_size) as _)
     }
 
-    pub unsafe fn submit_buffer(&self, len: u32) {
+    pub unsafe fn submit_buffer(&self, num_frames: usize) {
         pulse::pa_stream_write(
             self.stream,
             self.cur_buffer,
-            len as _,
+            num_frames * self.frame_size,
             None,
             0,
             pulse::PA_SEEK_RELATIVE,

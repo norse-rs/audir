@@ -13,7 +13,7 @@ bitflags = "1"
 winapi = { version = "0.3.8", features = ["debug", "ksmedia", "audioclient", "combaseapi", "coml2api", "devpkey", "mmdeviceapi", "objbase", "unknwnbase", "winerror", "synchapi"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libpulse-sys = "1.9"
+libpulse-sys = { version = "1.11", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 coreaudio-sys = "0.2"

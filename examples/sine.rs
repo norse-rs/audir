@@ -1,8 +1,9 @@
-use norse_audir::wasapi;
+use norse_audir as audir;
 
 fn main() {
     unsafe {
-        let instance = wasapi::Instance::create("audir - sine");
+        let instance = audir::wasapi::Instance::create("audir - sine");
+
         let input_devices = instance.enumerate_physical_input_devices();
         let output_devices = instance.enumerate_physical_output_devices();
 
@@ -17,9 +18,8 @@ fn main() {
         }
 
         let device = instance.create_device(&output_devices[0]);
-        let properties = dbg!(device.properties());
-        let buffer_frames = properties.buffer_size;
         let stream = device.get_output_stream();
+        let properties = dbg!(device.properties());
 
         let frequency = 100.0;
         let sample_rate = 48_000.0;
