@@ -1,9 +1,9 @@
 use lewton::inside_ogg::OggStreamReader;
-use norse_audir::wasapi;
+use norse_audir as audir;
 use std::env;
 use std::fs::File;
 
-fn main() -> Result<(), Box<std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = env::args()
         .nth(1)
         .expect("No arg found. Please specify a file to open.");
@@ -23,17 +23,27 @@ fn main() -> Result<(), Box<std::error::Error>> {
     }
 
     unsafe {
-        let instance = wasapi::Instance::create("audir - music");
-        let output_devices = instance.enumerate_physical_output_devices();
-        let device = instance.create_device(&output_devices[0]);
-        let properties = dbg!(device.properties());
-        let buffer_frames = properties.buffer_size;
-        let stream = device.get_output_stream();
+        #[cfg(windows)]
+        let instance = audir::wasapi::Instance::create("audir - sine");
+        #[cfg(target_os = "linux")]
+        let instance = audir::pulse::Instance::create("audir - sine");
 
-        let sample_rate = 48_000;
+        let output_devices = instance.enumerate_physical_output_devices();
+        let device = instance.create_device(
+            &output_devices[0],
+            audir::SampleDesc {
+                format: audir::Format::F32,
+                channels: 2,
+                sample_rate: 48_000,
+            },
+        );
+        let mut stream = device.output_stream();
+        let properties = dbg!(device.properties());
+
+        let sample_rate = properties.sample_rate;
         let num_channels = properties.num_channels;
 
-        assert_eq!(sample_rate, ogg_stream.ident_hdr.audio_sample_rate);
+        assert_eq!(sample_rate, ogg_stream.ident_hdr.audio_sample_rate as _);
         assert_eq!(num_channels, ogg_stream.ident_hdr.audio_channels as _);
 
         device.start();

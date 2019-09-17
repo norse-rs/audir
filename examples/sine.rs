@@ -2,7 +2,10 @@ use norse_audir as audir;
 
 fn main() {
     unsafe {
+        #[cfg(windows)]
         let instance = audir::wasapi::Instance::create("audir - sine");
+        #[cfg(target_os = "linux")]
+        let instance = audir::pulse::Instance::create("audir - sine");
 
         let input_devices = instance.enumerate_physical_input_devices();
         let output_devices = instance.enumerate_physical_output_devices();
@@ -17,12 +20,20 @@ fn main() {
             println!("{:#?}", device.get_properties());
         }
 
-        let device = instance.create_device(&output_devices[0]);
-        let stream = device.get_output_stream();
+        let device = instance.create_device(
+            &output_devices[0],
+            audir::SampleDesc {
+                format: audir::Format::F32,
+                channels: 2,
+                sample_rate: 44_100,
+            },
+        );
+
+        let mut stream = device.output_stream();
         let properties = dbg!(device.properties());
 
         let frequency = 100.0;
-        let sample_rate = 48_000.0;
+        let sample_rate = properties.sample_rate as f32;
         let num_channels = properties.num_channels;
         let cycle_step = frequency / sample_rate;
         let mut cycle = 0.0;

@@ -1,6 +1,6 @@
 use crate::{
-    ChannelMask, DeviceProperties, DriverId, Format, PhysicalDeviceProperties, SampleDesc,
-    SharingModeFlags, Frames,
+    ChannelMask, DeviceProperties, DriverId, Format, Frames, PhysicalDeviceProperties, SampleDesc,
+    SharingModeFlags,
 };
 use libpulse_sys as pulse;
 use std::ffi::c_void;
@@ -158,7 +158,7 @@ pub struct Device {
 }
 
 impl Device {
-    pub unsafe fn polled_output_stream(&self) -> OutputStream {
+    pub unsafe fn output_stream(&self) -> OutputStream {
         // TODO
         let attribs = pulse::pa_buffer_attr {
             maxlength: !0,
@@ -203,12 +203,22 @@ impl Device {
             buffer_attrs.maxlength,
             buffer_attrs.tlength
         ));
+        let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
 
         DeviceProperties {
-            num_channels: 0,                    // TODO
+            num_channels: sample_spec.channels as _,
             channel_mask: ChannelMask::empty(), // TODO
+            sample_rate: sample_spec.rate as _,
             buffer_size: buffer_attrs.minreq as _,
         }
+    }
+
+    pub unsafe fn start(&self) {
+        println!("Device::start unimplemented");
+    }
+
+    pub unsafe fn stop(&self) {
+        println!("Device::stop unimplemented");
     }
 }
 
@@ -233,11 +243,7 @@ impl OutputStream {
         };
 
         let mut data = ptr::null_mut();
-        pulse::pa_stream_begin_write(
-            self.stream,
-            &mut data,
-            &mut size
-        );
+        pulse::pa_stream_begin_write(self.stream, &mut data, &mut size);
         self.cur_buffer = data;
         (data as _, (size / self.frame_size) as _)
     }

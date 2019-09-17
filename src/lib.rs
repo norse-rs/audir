@@ -58,5 +58,6 @@ pub struct SampleDesc {
 pub struct DeviceProperties {
     pub num_channels: usize,
     pub channel_mask: ChannelMask,
+    pub sample_rate: usize,
     pub buffer_size: Frames,
 }

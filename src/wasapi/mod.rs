@@ -19,7 +19,8 @@ use winapi::um::winnt;
 use winapi::Interface;
 
 use crate::{
-    ChannelMask, DeviceProperties, DriverId, Frames, PhysicalDeviceProperties, SharingModeFlags,
+    ChannelMask, DeviceProperties, DriverId, Frames, PhysicalDeviceProperties, SampleDesc,
+    SharingModeFlags,
 };
 
 pub type Instance = WeakPtr<IMMDeviceEnumerator>;
@@ -72,7 +73,11 @@ impl Instance {
         self.enumerate_physical_devices(eRender)
     }
 
-    pub unsafe fn create_device(&self, physical_device: &PhysicalDevice) -> Device {
+    pub unsafe fn create_device(
+        &self,
+        physical_device: &PhysicalDevice,
+        sample_desc: SampleDesc,
+    ) -> Device {
         let mut audio_client = WeakPtr::<IAudioClient>::null();
         physical_device.Activate(
             &IAudioClient::uuidof(),
@@ -139,7 +144,7 @@ pub struct Device {
 }
 
 impl Device {
-    pub unsafe fn get_output_stream(&self) -> OutputStream {
+    pub unsafe fn output_stream(&self) -> OutputStream {
         let mut client = WeakPtr::<IAudioRenderClient>::null();
         self.client
             .GetService(&IAudioRenderClient::uuidof(), client.mut_void() as *mut _);
@@ -185,8 +190,9 @@ impl Device {
                 // TODO: more channels
 
                 DeviceProperties {
-                    num_channels: (*mix_format).nChannels as _,
+                    num_channels: format.Format.nChannels as _,
                     channel_mask,
+                    sample_rate: format.Format.nSamplesPerSec as _,
                     buffer_size,
                 }
             }
