@@ -163,6 +163,17 @@ impl Device {
         }
     }
 
+    pub unsafe fn input_stream(&self) -> InputStream {
+        let mut client = WeakPtr::<IAudioCaptureClient>::null();
+        self.client
+            .GetService(&IAudioCaptureClient::uuidof(), client.mut_void() as _);
+
+        InputStream {
+            client,
+            fence: self.fence,
+        }
+    }
+
     pub unsafe fn properties(&self) -> DeviceProperties {
         let buffer_size = {
             let mut size = 0;
@@ -206,6 +217,42 @@ impl Device {
 
     pub unsafe fn stop(&self) {
         self.client.Stop();
+    }
+}
+
+pub struct InputStream {
+    client: WeakPtr<IAudioCaptureClient>,
+    fence: Fence,
+}
+
+impl InputStream {
+    pub unsafe fn acquire_buffer(&self, timeout_ms: u32) -> (*const u8, Frames) {
+        self.fence.wait(timeout_ms);
+
+        let mut len = 0;
+        self.client.GetNextPacketSize(&mut len);
+
+        let mut data = ptr::null_mut();
+        let mut num_frames = 0;
+        let mut flags = 0;
+
+        self.client.GetBuffer(
+            &mut data,
+            &mut num_frames,
+            &mut flags,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+
+        if flags != 0 {
+            dbg!(flags);
+        }
+
+        (data, num_frames as _)
+    }
+
+    pub unsafe fn release_buffer(&self, num_frames: Frames) {
+        self.client.ReleaseBuffer(num_frames as _);
     }
 }
 
