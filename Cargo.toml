@@ -18,5 +18,10 @@ libpulse-sys = { version = "1.11", default-features = false }
 [target.'cfg(target_os = "macos")'.dependencies]
 coreaudio-sys = "0.2"
 
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.8"
+log = "0.4"
+opensles-sys = "0.0.6"
+
 [dev-dependencies]
-lewton = "0.9"
+# lewton = "0.9"
