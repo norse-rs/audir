@@ -1,5 +1,3 @@
-use norse_audir as audir;
-
 fn main() {
     android_logger::init_once(
         android_logger::Config::default()

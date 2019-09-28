@@ -1,5 +1,4 @@
 use lewton::inside_ogg::OggStreamReader;
-use norse_audir as audir;
 use std::env;
 use std::fs::File;
 

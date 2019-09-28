@@ -1,5 +1,3 @@
-use norse_audir as audir;
-
 fn main() {
     unsafe {
         #[cfg(windows)]
