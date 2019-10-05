@@ -1,31 +1,57 @@
-use lewton::inside_ogg::OggStreamReader;
 use std::env;
-use std::fs::File;
+
+use std::path::Path;
+
+#[cfg(target_os = "android")]
+pub fn load<P: AsRef<Path>>(path: P) -> Vec<u8> {
+    use android_glue;
+
+    let filename = path.as_ref().to_str().expect("Can`t convert Path to &str");
+    match android_glue::load_asset(filename) {
+        Ok(buf) => buf,
+        Err(_) => panic!("Can`t load asset '{}'", filename),
+    }
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let file_path = env::args()
-        .nth(1)
-        .expect("No arg found. Please specify a file to open.");
-    let file = File::open(file_path).expect("Can't open file");
-    let mut ogg_stream = OggStreamReader::new(file)?;
-
-    let mut samples = Vec::new();
-    loop {
-        let data: Option<lewton::samples::InterleavedSamples<f32>> =
-            ogg_stream.read_dec_packet_generic()?;
-        match data {
-            Some(data) => {
-                samples.extend(data.samples);
-            }
-            None => break,
-        }
+    #[cfg(target_os = "android")]
+    {
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_min_level(log::Level::Trace) // limit log level
+                .with_tag("audir"), // logs will show under mytag tag
+        );
     }
+
+    log::warn!("start");
+
+    #[cfg(not(target_os = "android"))]
+    let mut audio_stream = {
+        let file_path = env::args()
+            .nth(1)
+            .expect("No arg found. Please specify a file to open.");
+        audrey::open(file_path)?
+    };
+
+    #[cfg(target_os = "android")]
+    let mut audio_stream = {
+        let file = std::io::Cursor::new(load("asmr_48000.ogg"));
+        audrey::Reader::new(file).unwrap()
+    };
+
+    let samples = audio_stream
+        .frames::<[f32; 2]>()
+        .map(Result::unwrap)
+        .collect::<Vec<_>>();
+    log::warn!("samples: {}", samples.len());
 
     unsafe {
         #[cfg(windows)]
-        let instance = audir::wasapi::Instance::create("audir - sine");
+        let instance = audir::wasapi::Instance::create("audir - music");
         #[cfg(target_os = "linux")]
-        let instance = audir::pulse::Instance::create("audir - sine");
+        let instance = audir::pulse::Instance::create("audir - music");
+        #[cfg(target_os = "android")]
+        let instance = audir::opensles::Instance::create("audir - music");
 
         let output_devices = instance.enumerate_physical_output_devices();
         let device = instance.create_device(
@@ -36,16 +62,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 sample_rate: 48_000,
             },
         );
-        let mut stream = device.output_stream();
+
         let properties = dbg!(device.properties());
 
         let sample_rate = properties.sample_rate;
         let num_channels = properties.num_channels;
 
-        assert_eq!(sample_rate, ogg_stream.ident_hdr.audio_sample_rate as _);
-        assert_eq!(num_channels, ogg_stream.ident_hdr.audio_channels as _);
-
-        device.start();
+        let mut stream = device.output_stream();
+        stream.start();
 
         let mut sample = 0;
         loop {
@@ -55,8 +79,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 num_frames as usize * num_channels,
             );
 
-            for dt in 0..num_channels * num_frames as usize {
-                buffer[dt as usize] = samples[sample];
+            for dt in 0..num_frames as usize {
+                let frame = samples[sample];
+                buffer[num_channels * dt as usize] = frame[0];
+                buffer[num_channels * dt as usize + 1] = frame[1];
                 sample = (sample + 1) % samples.len();
             }
 

@@ -6,6 +6,9 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package.metadata.android]
+assets = "assets"
+
 [dependencies]
 bitflags = "1"
 
@@ -22,7 +25,7 @@ coreaudio-sys = "0.2"
 android_logger = "0.8"
 log = "0.4"
 opensles-sys = "0.0.6"
-parking_lot = "0.9"
+android_glue = "0.2"
 
 [dev-dependencies]
-# lewton = "0.9"
+audrey = "0.2"

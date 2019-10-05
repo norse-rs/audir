@@ -5,10 +5,7 @@ fn main() {
 
         let input_devices = instance.enumerate_physical_input_devices();
 
-        println!(
-            "I: {:?}",
-            input_devices.len(),
-        );
+        println!("I: {:?}", input_devices.len(),);
 
         for device in &input_devices {
             println!("{:#?}", device.get_properties());

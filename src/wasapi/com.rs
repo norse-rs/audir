@@ -95,6 +95,8 @@ impl<T> PartialEq for WeakPtr<T> {
     }
 }
 
+impl<T> Eq for WeakPtr<T> {}
+
 impl<T> Hash for WeakPtr<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);

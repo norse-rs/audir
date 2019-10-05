@@ -55,7 +55,7 @@ pub struct PhysicalDevice {
 }
 
 impl PhysicalDevice {
-    pub unsafe fn get_properties(&self) -> PhysicalDeviceProperties {
+    pub unsafe fn properties(&self) -> PhysicalDeviceProperties {
         PhysicalDeviceProperties {
             device_name: self.name.clone(),
             driver_id: DriverId::PulseAudio,
@@ -68,6 +68,7 @@ fn map_format(format: Format) -> pulse::pa_sample_format_t {
     match format {
         Format::I16 => pulse::pa_sample_format_t::S16le,
         Format::F32 => pulse::pa_sample_format_t::F32le,
+        _ => unimplemented!(),
     }
 }
 
