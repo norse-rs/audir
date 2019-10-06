@@ -22,6 +22,12 @@ bitflags::bitflags! {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum SharingMode {
+    Exclusive,
+    Concurrent,
+}
+
 bitflags::bitflags! {
     pub struct ChannelMask: u32 {
         const FRONT_LEFT = 0b0001;
@@ -72,6 +78,7 @@ pub struct DeviceProperties {
 #[derive(Debug, Clone)]
 pub enum Error {
     DeviceLost,
+    Validation,
 }
 
 impl error::Error for Error {}
@@ -80,6 +87,7 @@ impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
         match *self {
             Error::DeviceLost => writeln!(fmt, "Device lost"),
+            Error::Validation => writeln!(fmt, "Validation error"),
         }
     }
 }

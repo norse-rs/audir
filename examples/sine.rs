@@ -11,8 +11,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     unsafe {
-        #[cfg(windows)]
+        #[cfg(all(windows, not(feature = "asio")))]
         let instance = audir::wasapi::Instance::create("audir - sine");
+        #[cfg(feature = "asio")]
+        let instance = audir::asio::Instance::create("audir - sine");
         #[cfg(target_os = "linux")]
         let instance = audir::pulse::Instance::create("audir - sine");
         #[cfg(target_os = "android")]
@@ -21,10 +23,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         let physical_devices = instance.enumerate_physical_devices();
 
         for device in &physical_devices {
-            println!("{:#?}", instance.get_physical_device_properties(*device)?);
+            println!("{:X}: {:#?}", device, instance.get_physical_device_properties(*device)?);
         }
 
         let output_device = instance.default_physical_output_device().unwrap();
+        println!("{:X}: {:#?}", output_device, instance.get_physical_device_properties(output_device)?);
 
         // let output_device = physical_devices
         //     .into_iter()
@@ -37,13 +40,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         //     })
         //     .unwrap();
 
+        let sharing = audir::SharingMode::Concurrent;
+        let format = audir::SampleDesc {
+            format: audir::Format::F32,
+            channels: 2,
+            sample_rate: 48_000,
+        };
+        instance.physical_device_supports_format(output_device, sharing, format);
+
         let device = instance.create_device(
             output_device,
-            audir::SampleDesc {
-                format: audir::Format::F32,
-                channels: 2,
-                sample_rate: 48_000,
-            },
+            sharing,
+            format,
         );
 
         let properties = dbg!(device.properties());
@@ -54,7 +62,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let cycle_step = frequency / sample_rate;
         let mut cycle = 0.0;
 
-        let mut stream = device.output_stream();
+        let stream = device.output_stream();
         device.start();
 
         loop {

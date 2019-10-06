@@ -22,7 +22,10 @@ use winapi::um::synchapi;
 use winapi::um::winnt;
 use winapi::Interface;
 
-use crate::api::{self, Result};
+use crate::{
+    api::{self, Result},
+    handle::Handle,
+};
 
 fn map_sample_desc(sample_desc: &api::SampleDesc) -> Option<WAVEFORMATEXTENSIBLE> {
     let (format_tag, sub_format, bytes_per_sample) = match sample_desc.format {
@@ -55,9 +58,21 @@ fn map_sample_desc(sample_desc: &api::SampleDesc) -> Option<WAVEFORMATEXTENSIBLE
     })
 }
 
+fn map_sharing_mode(sharing: api::SharingMode) -> AUDCLNT_SHAREMODE {
+    match sharing {
+        api::SharingMode::Exclusive => AUDCLNT_SHAREMODE_EXCLUSIVE,
+        api::SharingMode::Concurrent => AUDCLNT_SHAREMODE_SHARED,
+    }
+}
+
 type InstanceRaw = WeakPtr<IMMDeviceEnumerator>;
 type PhysicalDeviceRaw = WeakPtr<IMMDevice>;
-type PhysialDeviceMap = HashMap<PhysicalDeviceRaw, api::StreamFlags>;
+struct PhysicalDevice {
+    device: PhysicalDeviceRaw,
+    audio_client: WeakPtr<IAudioClient>,
+    streams: api::StreamFlags,
+}
+type PhysialDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
 
 pub struct Instance {
     raw: InstanceRaw,
@@ -85,6 +100,17 @@ impl Instance {
             raw: instance,
             physical_devices,
         }
+    }
+
+    unsafe fn get_physical_device_id(device: PhysicalDeviceRaw) -> String {
+        let mut str_id = ptr::null_mut();
+        device.GetId(&mut str_id);
+        let mut len = 0;
+        while *str_id.offset(len) != 0 {
+            len += 1;
+        }
+        let name: OsString = OsStringExt::from_wide(slice::from_raw_parts(str_id, len as _));
+        name.into_string().unwrap()
     }
 
     unsafe fn enumerate_physical_devices_by_flow(
@@ -119,12 +145,28 @@ impl Instance {
         for i in 0..num_items {
             let mut device = PhysicalDeviceRaw::null();
             collection.Item(i, device.mut_void() as *mut _);
+            let id = Self::get_physical_device_id(device);
+
             physical_devices
-                .entry(device)
-                .and_modify(|flags| {
-                    *flags |= stream_flags;
+                .entry(id)
+                .and_modify(|device| {
+                    device.streams |= stream_flags;
                 })
-                .or_insert(stream_flags);
+                .or_insert_with(|| {
+                    let mut audio_client = WeakPtr::<IAudioClient>::null();
+                    device.Activate(
+                        &IAudioClient::uuidof(),
+                        CLSCTX_ALL,
+                        ptr::null_mut(),
+                        audio_client.mut_void() as *mut _,
+                    );
+
+                    Handle::new(PhysicalDevice {
+                        device,
+                        audio_client,
+                        streams: stream_flags,
+                    })
+                });
         }
 
         collection.Release();
@@ -132,8 +174,8 @@ impl Instance {
 
     pub unsafe fn enumerate_physical_devices(&self) -> Vec<api::PhysicalDevice> {
         self.physical_devices
-            .keys()
-            .map(|device| device.as_mut_ptr() as _)
+            .values()
+            .map(|device| device.raw())
             .collect()
     }
 
@@ -157,7 +199,8 @@ impl Instance {
         if device.is_null() {
             None
         } else {
-            Some(device.as_mut_ptr() as _)
+            let id = Self::get_physical_device_id(device);
+            Some(self.physical_devices[&id].raw())
         }
     }
 
@@ -167,14 +210,12 @@ impl Instance {
     ) -> Result<api::PhysicalDeviceProperties> {
         type PropertyStore = WeakPtr<IPropertyStore>;
 
-        let device = PhysicalDeviceRaw::from_raw(physical_device as _);
-        let streams = *self
-            .physical_devices
-            .get(&device)
-            .ok_or(api::Error::DeviceLost)?;
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
 
         let mut store = PropertyStore::null();
-        device.OpenPropertyStore(STGM_READ, store.mut_void() as *mut _);
+        physical_device
+            .device
+            .OpenPropertyStore(STGM_READ, store.mut_void() as *mut _);
 
         let device_name = {
             let mut value = mem::uninitialized();
@@ -195,29 +236,42 @@ impl Instance {
             device_name,
             driver_id: api::DriverId::Wasapi,
             sharing: api::SharingModeFlags::CONCURRENT | api::SharingModeFlags::EXCLUSIVE,
-            streams,
+            streams: physical_device.streams,
         })
+    }
+
+    pub unsafe fn physical_device_supports_format(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+        sample_desc: api::SampleDesc,
+    ) {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+
+        let wave_format = map_sample_desc(&sample_desc).unwrap(); // todo
+        let sharing = map_sharing_mode(sharing);
+
+        let mut closest_format = ptr::null_mut();
+        let hr = dbg!(physical_device.audio_client.IsFormatSupported(
+            sharing,
+            &wave_format as *const _ as _,
+            &mut closest_format
+        ));
     }
 
     pub unsafe fn create_device(
         &self,
         physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
         sample_desc: api::SampleDesc,
     ) -> Device {
-        let physical_device = PhysicalDeviceRaw::from_raw(physical_device as _);
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
 
-        let mut audio_client = WeakPtr::<IAudioClient>::null();
-        physical_device.Activate(
-            &IAudioClient::uuidof(),
-            CLSCTX_ALL,
-            ptr::null_mut(),
-            audio_client.mut_void() as *mut _,
-        );
         let mut original_fmt = ptr::null_mut();
-        audio_client.GetMixFormat(&mut original_fmt);
+        physical_device.audio_client.GetMixFormat(&mut original_fmt);
         let mix_format = map_sample_desc(&sample_desc).unwrap(); // todo
-        dbg!(audio_client.Initialize(
-            AUDCLNT_SHAREMODE_SHARED,
+        dbg!(physical_device.audio_client.Initialize(
+            map_sharing_mode(sharing),
             AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
             0,
             0,
@@ -226,10 +280,10 @@ impl Instance {
         ));
 
         let fence = Fence::create(false, false);
-        audio_client.SetEventHandle(fence.0);
+        physical_device.audio_client.SetEventHandle(fence.0);
 
         Device {
-            client: audio_client,
+            client: physical_device.audio_client,
             fence,
         }
     }

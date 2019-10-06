@@ -1,8 +1,10 @@
+#[allow(non_camel_case_types)]
+mod sles;
+
 use crate::{
     ChannelMask, DeviceProperties, DriverId, Format, Frames, PhysicalDeviceProperties, SampleDesc,
     SharingModeFlags,
 };
-use opensles as sles;
 use std::os::raw::c_void;
 use std::ptr;
 use std::sync::Arc;
@@ -12,14 +14,14 @@ const BUFFER_NUM_FRAMES: usize = 1024; // TODO: random
 const BUFFER_CHAIN_SIZE: usize = 3; // TODO: random
 
 pub struct Instance {
-    instance: sles::bindings::SLObjectItf,
-    engine: sles::bindings::SLEngineItf,
+    instance: sles::SLObjectItf,
+    engine: sles::SLEngineItf,
 }
 
 impl Instance {
     pub unsafe fn create(_name: &str) -> Self {
         let mut instance = ptr::null();
-        sles::bindings::slCreateEngine(
+        sles::slCreateEngine(
             &mut instance,
             0,
             ptr::null(),
@@ -32,7 +34,7 @@ impl Instance {
         let mut engine = ptr::null();
         ((**instance).GetInterface).unwrap()(
             instance,
-            sles::bindings::SL_IID_ENGINE,
+            sles::SL_IID_ENGINE,
             &mut engine as *mut _ as _,
         );
 
@@ -80,10 +82,10 @@ impl PhysicalDevice {
 }
 
 pub struct Device {
-    engine: sles::bindings::SLEngineItf,
+    engine: sles::SLEngineItf,
     sample_desc: SampleDesc,
-    output_state: Option<sles::bindings::SLPlayItf>,
-    input_state: Option<sles::bindings::SLPlayItf>,
+    output_state: Option<sles::SLPlayItf>,
+    input_state: Option<sles::SLPlayItf>,
 }
 
 impl Device {
@@ -99,25 +101,25 @@ impl Device {
         ((**mix).Realize).unwrap()(mix, sles::SL_BOOLEAN_FALSE);
 
         let mut audio_player = ptr::null();
-        let mut locator_source = sles::bindings::SLDataLocator_AndroidSimpleBufferQueue {
-            locatorType: 0x800007BD, // sles::bindings::SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE,
+        let mut locator_source = sles::SLDataLocator_AndroidSimpleBufferQueue {
+            locatorType: 0x800007BD, // sles::SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE,
             numBuffers: BUFFER_CHAIN_SIZE as _,
         };
 
         let mut create_player = |format| {
-            let mut source = sles::bindings::SLDataSource {
+            let mut source = sles::SLDataSource {
                 pLocator: &mut locator_source as *mut _ as _,
                 pFormat: format,
             };
-            let mut locator_sink = sles::bindings::SLDataLocator_OutputMix {
+            let mut locator_sink = sles::SLDataLocator_OutputMix {
                 locatorType: sles::SL_DATALOCATOR_OUTPUTMIX,
                 outputMix: mix,
             };
-            let mut sink = sles::bindings::SLDataSink {
+            let mut sink = sles::SLDataSink {
                 pLocator: &mut locator_sink as *mut _ as _,
                 pFormat: ptr::null_mut(),
             };
-            let ids = [sles::bindings::SL_IID_BUFFERQUEUE];
+            let ids = [sles::SL_IID_BUFFERQUEUE];
             let requirements = [sles::SL_BOOLEAN_TRUE];
             log::warn!(
                 "{}",
@@ -135,7 +137,7 @@ impl Device {
 
         match self.sample_desc.format {
             Format::F32 => {
-                let mut format_source = sles::bindings::SLAndroidDataFormat_PCM_EX {
+                let mut format_source = sles::SLAndroidDataFormat_PCM_EX {
                     formatType: 0x4, // SL_ANDROID_DATAFORMAT_PCM_EX
                     numChannels: self.sample_desc.channels as _,
                     sampleRate: self.sample_desc.sample_rate as u32 * 1000,
@@ -149,7 +151,7 @@ impl Device {
                 create_player(&mut format_source as *mut _ as _);
             }
             Format::U32 => {
-                let mut format_source = sles::bindings::SLDataFormat_PCM {
+                let mut format_source = sles::SLDataFormat_PCM {
                     formatType: sles::SL_DATAFORMAT_PCM,
                     numChannels: self.sample_desc.channels as _,
                     samplesPerSec: self.sample_desc.sample_rate as u32 * 1000, // TODO
@@ -170,17 +172,17 @@ impl Device {
             ((**audio_player).Realize).unwrap()(audio_player, sles::SL_BOOLEAN_FALSE)
         );
 
-        let mut queue: sles::bindings::SLAndroidSimpleBufferQueueItf = ptr::null();
+        let mut queue: sles::SLAndroidSimpleBufferQueueItf = ptr::null();
         ((**audio_player).GetInterface).unwrap()(
             audio_player,
-            sles::bindings::SL_IID_BUFFERQUEUE,
+            sles::SL_IID_BUFFERQUEUE,
             &mut queue as *mut _ as _,
         );
 
-        let mut state: sles::bindings::SLPlayItf = ptr::null();
+        let mut state: sles::SLPlayItf = ptr::null();
         ((**audio_player).GetInterface).unwrap()(
             audio_player,
-            sles::bindings::SL_IID_PLAY,
+            sles::SL_IID_PLAY,
             &mut state as *mut _ as _,
         );
 
@@ -196,7 +198,7 @@ impl Device {
         let pair = Arc::new((Mutex::new(true), Condvar::new()));
 
         extern "C" fn write_cb(
-            _: sles::bindings::SLAndroidSimpleBufferQueueItf,
+            _: sles::SLAndroidSimpleBufferQueueItf,
             user: *mut c_void,
         ) {
             unsafe {
@@ -250,9 +252,9 @@ impl Device {
 }
 
 pub struct OutputStream {
-    mix: sles::bindings::SLObjectItf,
-    audio_player: sles::bindings::SLObjectItf,
-    queue: sles::bindings::SLAndroidSimpleBufferQueueItf,
+    mix: sles::SLObjectItf,
+    audio_player: sles::SLObjectItf,
+    queue: sles::SLAndroidSimpleBufferQueueItf,
 
     pair: Arc<(Mutex<bool>, Condvar)>,
     buffers: Vec<Vec<u32>>, // TODO: alignment
