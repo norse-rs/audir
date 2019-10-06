@@ -137,6 +137,30 @@ impl Instance {
             .collect()
     }
 
+    pub unsafe fn default_physical_input_device(&self) -> Option<api::PhysicalDevice> {
+        let mut device = PhysicalDeviceRaw::null();
+        let _hr = self
+            .raw
+            .GetDefaultAudioEndpoint(eCapture, eConsole, device.mut_void() as *mut _);
+        if device.is_null() {
+            None
+        } else {
+            Some(device.as_mut_ptr() as _)
+        }
+    }
+
+    pub unsafe fn default_physical_output_device(&self) -> Option<api::PhysicalDevice> {
+        let mut device = PhysicalDeviceRaw::null();
+        let _hr = self
+            .raw
+            .GetDefaultAudioEndpoint(eRender, eConsole, device.mut_void() as *mut _);
+        if device.is_null() {
+            None
+        } else {
+            Some(device.as_mut_ptr() as _)
+        }
+    }
+
     pub unsafe fn get_physical_device_properties(
         &self,
         physical_device: api::PhysicalDevice,
@@ -358,7 +382,7 @@ impl OutputStream {
         (data, len as _)
     }
 
-    pub unsafe fn submit_buffer(&self, num_frames: api::Frames) {
+    pub unsafe fn release_buffer(&self, num_frames: api::Frames) {
         self.client.ReleaseBuffer(num_frames as _, 0);
     }
 }

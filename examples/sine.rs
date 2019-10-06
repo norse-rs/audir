@@ -24,16 +24,18 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("{:#?}", instance.get_physical_device_properties(*device)?);
         }
 
-        let output_device = physical_devices
-            .into_iter()
-            .find(|device| {
-                let properties = instance.get_physical_device_properties(*device);
-                match properties {
-                    Ok(properties) => properties.streams.contains(audir::StreamFlags::OUTPUT),
-                    Err(_) => false,
-                }
-            })
-            .unwrap();
+        let output_device = instance.default_physical_output_device().unwrap();
+
+        // let output_device = physical_devices
+        //     .into_iter()
+        //     .find(|device| {
+        //         let properties = instance.get_physical_device_properties(*device);
+        //         match properties {
+        //             Ok(properties) => properties.streams.contains(audir::StreamFlags::OUTPUT),
+        //             Err(_) => false,
+        //         }
+        //     })
+        //     .unwrap();
 
         let device = instance.create_device(
             output_device,
@@ -72,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 cycle = (cycle + cycle_step) % 1.0;
             }
 
-            stream.submit_buffer(num_frames);
+            stream.release_buffer(num_frames);
         }
     }
 
