@@ -1,4 +1,4 @@
-use std::ops::{DerefMut, Deref};
+use std::ops::{Deref, DerefMut};
 
 pub type RawHandle = u64;
 
@@ -21,7 +21,7 @@ impl<T> Handle<T> {
     }
 }
 
-impl<T> Copy for Handle<T> { }
+impl<T> Copy for Handle<T> {}
 
 impl<T> Clone for Handle<T> {
     fn clone(&self) -> Self {

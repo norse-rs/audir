@@ -1,8 +1,8 @@
-
 fn main() {
     let bindings = bindgen::Builder::default()
         .header("headers/OpenSLES.h")
         .header("headers/OpenSLES_Platform.h")
+        .header("headers/OpenSLES_Android.h")
         .generate()
         .expect("Unable to generate bindings");
 

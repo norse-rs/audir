@@ -1,3 +1,4 @@
+use audir::{Device, Instance};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -23,11 +24,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         let physical_devices = instance.enumerate_physical_devices();
 
         for device in &physical_devices {
-            println!("{:X}: {:#?}", device, instance.get_physical_device_properties(*device)?);
+            println!(
+                "{:X}: {:#?}",
+                device,
+                instance.get_physical_device_properties(*device)?
+            );
         }
 
         let output_device = instance.default_physical_output_device().unwrap();
-        println!("{:X}: {:#?}", output_device, instance.get_physical_device_properties(output_device)?);
+        println!(
+            "{:X}: {:#?}",
+            output_device,
+            instance.get_physical_device_properties(output_device)?
+        );
 
         // let output_device = physical_devices
         //     .into_iter()
@@ -48,11 +57,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
         instance.physical_device_supports_format(output_device, sharing, format);
 
-        let device = instance.create_device(
-            output_device,
-            sharing,
-            format,
-        );
+        let device = instance.create_device(output_device, sharing, None, Some(format));
 
         let properties = dbg!(device.properties());
 
@@ -62,7 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let cycle_step = frequency / sample_rate;
         let mut cycle = 0.0;
 
-        let stream = device.output_stream();
+        let stream = device.get_output_stream()?;
         device.start();
 
         loop {

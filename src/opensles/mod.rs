@@ -1,25 +1,28 @@
 #[allow(non_camel_case_types)]
+#[allow(non_snake_case)]
+#[allow(dead_code)]
 mod sles;
 
-use crate::{
-    ChannelMask, DeviceProperties, DriverId, Format, Frames, PhysicalDeviceProperties, SampleDesc,
-    SharingModeFlags,
-};
+use crate::{api, api::Result};
 use std::os::raw::c_void;
 use std::ptr;
 use std::sync::Arc;
 use std::sync::{Condvar, Mutex};
 
 const BUFFER_NUM_FRAMES: usize = 1024; // TODO: random
-const BUFFER_CHAIN_SIZE: usize = 3; // TODO: random
+const BUFFER_CHAIN_SIZE: usize = 2;
+
+const DEFAULT_PHYSICAL_DEVICE: api::PhysicalDevice = 0;
 
 pub struct Instance {
     instance: sles::SLObjectItf,
     engine: sles::SLEngineItf,
 }
 
-impl Instance {
-    pub unsafe fn create(_name: &str) -> Self {
+impl api::Instance for Instance {
+    type Device = Device;
+
+    unsafe fn create(_name: &str) -> Self {
         let mut instance = ptr::null();
         sles::slCreateEngine(
             &mut instance,
@@ -29,7 +32,7 @@ impl Instance {
             ptr::null(),
             ptr::null_mut(),
         );
-        ((**instance).Realize).unwrap()(instance, sles::SL_BOOLEAN_FALSE);
+        ((**instance).Realize).unwrap()(instance, sles::SL_BOOLEAN_FALSE as _);
 
         let mut engine = ptr::null();
         ((**instance).GetInterface).unwrap()(
@@ -41,52 +44,62 @@ impl Instance {
         Instance { instance, engine }
     }
 
-    pub unsafe fn enumerate_physical_input_devices(&self) -> Vec<PhysicalDevice> {
-        vec![PhysicalDevice::Input]
+    unsafe fn enumerate_physical_devices(&self) -> Vec<api::PhysicalDevice> {
+        vec![DEFAULT_PHYSICAL_DEVICE]
     }
 
-    pub unsafe fn enumerate_physical_output_devices(&self) -> Vec<PhysicalDevice> {
-        vec![PhysicalDevice::Output]
+    unsafe fn default_physical_input_device(&self) -> Option<api::PhysicalDevice> {
+        Some(DEFAULT_PHYSICAL_DEVICE)
     }
 
-    pub unsafe fn create_device(
+    unsafe fn default_physical_output_device(&self) -> Option<api::PhysicalDevice> {
+        Some(DEFAULT_PHYSICAL_DEVICE)
+    }
+
+    unsafe fn get_physical_device_properties(
         &self,
-        _physical_device: &PhysicalDevice,
-        sample_desc: SampleDesc,
+        physical_device: api::PhysicalDevice,
+    ) -> Result<api::PhysicalDeviceProperties> {
+        assert_eq!(physical_device, DEFAULT_PHYSICAL_DEVICE);
+
+        Ok(api::PhysicalDeviceProperties {
+            device_name: "default".into(),
+            driver_id: api::DriverId::OpenSLES,
+            sharing: api::SharingModeFlags::CONCURRENT, // TODO
+            streams: api::StreamFlags::INPUT | api::StreamFlags::OUTPUT,
+        })
+    }
+
+    unsafe fn create_device(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+        sample_desc: api::SampleDesc,
     ) -> Device {
+        assert_eq!(physical_device, DEFAULT_PHYSICAL_DEVICE);
+        assert_eq!(sharing, api::SharingMode::Concurrent);
+
         Device {
             engine: self.engine,
             sample_desc,
+            output_state: None,
+            input_state: None,
         }
     }
-}
 
-pub enum PhysicalDevice {
-    Input,
-    Output,
-}
-
-impl PhysicalDevice {
-    pub unsafe fn properties(&self) -> PhysicalDeviceProperties {
-        let device_name = match *self {
-            PhysicalDevice::Input => "Audio Input",
-            PhysicalDevice::Output => "Audio Output",
-        };
-
-        PhysicalDeviceProperties {
-            device_name: device_name.to_string(),
-            driver_id: DriverId::OpenSLES,
-            sharing: SharingModeFlags::CONCURRENT, // TODO
-        }
+    unsafe fn destroy_device(&self, device: &mut Device) {
+        unimplemented!()
     }
 }
 
 pub struct Device {
     engine: sles::SLEngineItf,
-    sample_desc: SampleDesc,
+    sample_desc: api::SampleDesc,
     output_state: Option<sles::SLPlayItf>,
     input_state: Option<sles::SLPlayItf>,
 }
+
+impl api::Device for Device {}
 
 impl Device {
     pub unsafe fn output_stream(&mut self) -> OutputStream {
@@ -98,11 +111,11 @@ impl Device {
             ptr::null(),
             ptr::null(),
         );
-        ((**mix).Realize).unwrap()(mix, sles::SL_BOOLEAN_FALSE);
+        ((**mix).Realize).unwrap()(mix, sles::SL_BOOLEAN_FALSE as _);
 
         let mut audio_player = ptr::null();
         let mut locator_source = sles::SLDataLocator_AndroidSimpleBufferQueue {
-            locatorType: 0x800007BD, // sles::SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE,
+            locatorType: sles::SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE as _,
             numBuffers: BUFFER_CHAIN_SIZE as _,
         };
 
@@ -112,7 +125,7 @@ impl Device {
                 pFormat: format,
             };
             let mut locator_sink = sles::SLDataLocator_OutputMix {
-                locatorType: sles::SL_DATALOCATOR_OUTPUTMIX,
+                locatorType: sles::SL_DATALOCATOR_OUTPUTMIX as _,
                 outputMix: mix,
             };
             let mut sink = sles::SLDataSink {
@@ -130,35 +143,35 @@ impl Device {
                     &mut sink,
                     1,
                     ids.as_ptr(),
-                    requirements.as_ptr()
+                    requirements.as_ptr() as _,
                 )
             );
         };
 
         match self.sample_desc.format {
-            Format::F32 => {
+            api::Format::F32 => {
                 let mut format_source = sles::SLAndroidDataFormat_PCM_EX {
-                    formatType: 0x4, // SL_ANDROID_DATAFORMAT_PCM_EX
+                    formatType: sles::SL_ANDROID_DATAFORMAT_PCM_EX as _,
                     numChannels: self.sample_desc.channels as _,
-                    sampleRate: self.sample_desc.sample_rate as u32 * 1000,
+                    sampleRate: (self.sample_desc.sample_rate * 1000) as _,
                     bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                     containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
-                    channelMask: sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT, // TODO
-                    endianness: sles::SL_BYTEORDER_LITTLEENDIAN,                             // TODO
-                    representation: 0x3, // SL_ANDROID_PCM_REPRESENTATION_FLOAT
+                    channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT) as _, // TODO
+                    endianness: sles::SL_BYTEORDER_LITTLEENDIAN as _, // TODO
+                    representation: sles::SL_ANDROID_PCM_REPRESENTATION_FLOAT as _,
                 };
 
                 create_player(&mut format_source as *mut _ as _);
             }
-            Format::U32 => {
+            api::Format::U32 => {
                 let mut format_source = sles::SLDataFormat_PCM {
-                    formatType: sles::SL_DATAFORMAT_PCM,
+                    formatType: sles::SL_DATAFORMAT_PCM as _,
                     numChannels: self.sample_desc.channels as _,
-                    samplesPerSec: self.sample_desc.sample_rate as u32 * 1000, // TODO
+                    samplesPerSec: (self.sample_desc.sample_rate * 1000) as _,
                     bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                     containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
-                    channelMask: sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT, // TODO
-                    endianness: sles::SL_BYTEORDER_LITTLEENDIAN,                             // TODO
+                    channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT) as _, // TODO
+                    endianness: sles::SL_BYTEORDER_LITTLEENDIAN as _, // TODO
                 };
 
                 create_player(&mut format_source as *mut _ as _);
@@ -169,7 +182,7 @@ impl Device {
 
         log::warn!(
             "realize: {}",
-            ((**audio_player).Realize).unwrap()(audio_player, sles::SL_BOOLEAN_FALSE)
+            ((**audio_player).Realize).unwrap()(audio_player, sles::SL_BOOLEAN_FALSE as _)
         );
 
         let mut queue: sles::SLAndroidSimpleBufferQueueItf = ptr::null();
@@ -197,10 +210,7 @@ impl Device {
 
         let pair = Arc::new((Mutex::new(true), Condvar::new()));
 
-        extern "C" fn write_cb(
-            _: sles::SLAndroidSimpleBufferQueueItf,
-            user: *mut c_void,
-        ) {
+        extern "C" fn write_cb(_: sles::SLAndroidSimpleBufferQueueItf, user: *mut c_void) {
             unsafe {
                 let pair = Arc::from_raw(user as *mut (Mutex<bool>, Condvar));
                 {
@@ -228,10 +238,10 @@ impl Device {
         }
     }
 
-    pub unsafe fn properties(&self) -> DeviceProperties {
-        DeviceProperties {
+    pub unsafe fn properties(&self) -> api::DeviceProperties {
+        api::DeviceProperties {
             num_channels: self.sample_desc.channels,
-            channel_mask: ChannelMask::empty(), // TODO
+            channel_mask: api::ChannelMask::empty(), // TODO
             sample_rate: self.sample_desc.sample_rate,
             buffer_size: BUFFER_NUM_FRAMES,
         }
@@ -239,10 +249,10 @@ impl Device {
 
     pub unsafe fn start(&mut self) {
         if let Some(ref state) = self.output_state {
-            ((**state).SetPlayState).unwrap()(state, sles::SL_PLAYSTATE_PLAYING);
+            ((***state).SetPlayState).unwrap()(*state, sles::SL_PLAYSTATE_PLAYING as _);
         }
         if let Some(ref state) = self.input_state {
-            ((**state).SetPlayState).unwrap()(state, sles::SL_PLAYSTATE_PLAYING);
+            ((***state).SetPlayState).unwrap()(*state, sles::SL_PLAYSTATE_PLAYING as _);
         }
     }
 
@@ -262,7 +272,7 @@ pub struct OutputStream {
 }
 
 impl OutputStream {
-    pub unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut u8, Frames) {
+    pub unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut u8, api::Frames) {
         {
             let &(ref lock, ref cvar) = &*self.pair;
             let mut signal = lock.lock().unwrap();
@@ -281,12 +291,12 @@ impl OutputStream {
         (buffer.as_mut_ptr() as _, buffer.len() / 2) // TODO: channels + sizeof u32
     }
 
-    pub unsafe fn submit_buffer(&mut self, num_frames: usize) {
+    pub unsafe fn release_buffer(&mut self, num_frames: api::Frames) {
         let buffer = &mut self.buffers[self.cur_buffer];
         ((**self.queue).Enqueue).unwrap()(
             self.queue,
             buffer.as_mut_ptr() as _,
-            buffer.len() as u32 * 4,
+            (buffer.len() * 4) as _,
         ); // TODO: sizeof u32, num_frames
     }
 }

@@ -15,6 +15,7 @@ use winapi::um::audioclient::*;
 use winapi::um::audiosessiontypes::*;
 use winapi::um::combaseapi::*;
 use winapi::um::coml2api::STGM_READ;
+use winapi::um::handleapi;
 use winapi::um::mmdeviceapi::*;
 use winapi::um::objbase::COINIT_MULTITHREADED;
 use winapi::um::propsys::*;
@@ -79,8 +80,10 @@ pub struct Instance {
     physical_devices: PhysialDeviceMap,
 }
 
-impl Instance {
-    pub unsafe fn create(_name: &str) -> Self {
+impl api::Instance for Instance {
+    type Device = Device;
+
+    unsafe fn create(_: &str) -> Self {
         CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED);
 
         let mut instance = InstanceRaw::null();
@@ -102,6 +105,121 @@ impl Instance {
         }
     }
 
+    unsafe fn enumerate_physical_devices(&self) -> Vec<api::PhysicalDevice> {
+        self.physical_devices
+            .values()
+            .map(|device| device.raw())
+            .collect()
+    }
+
+    unsafe fn default_physical_input_device(&self) -> Option<api::PhysicalDevice> {
+        let mut device = PhysicalDeviceRaw::null();
+        let _hr = self
+            .raw
+            .GetDefaultAudioEndpoint(eCapture, eConsole, device.mut_void() as *mut _);
+        if device.is_null() {
+            None
+        } else {
+            Some(device.as_mut_ptr() as _)
+        }
+    }
+
+    unsafe fn default_physical_output_device(&self) -> Option<api::PhysicalDevice> {
+        let mut device = PhysicalDeviceRaw::null();
+        let _hr = self
+            .raw
+            .GetDefaultAudioEndpoint(eRender, eConsole, device.mut_void() as *mut _);
+        if device.is_null() {
+            None
+        } else {
+            let id = Self::get_physical_device_id(device);
+            Some(self.physical_devices[&id].raw())
+        }
+    }
+
+    unsafe fn get_physical_device_properties(
+        &self,
+        physical_device: api::PhysicalDevice,
+    ) -> Result<api::PhysicalDeviceProperties> {
+        type PropertyStore = WeakPtr<IPropertyStore>;
+
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+
+        let mut store = PropertyStore::null();
+        physical_device
+            .device
+            .OpenPropertyStore(STGM_READ, store.mut_void() as *mut _);
+
+        let device_name = {
+            let mut value = mem::uninitialized();
+            store.GetValue(
+                &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+                &mut value,
+            );
+            let os_str = *value.data.pwszVal();
+            let mut len = 0;
+            while *os_str.offset(len) != 0 {
+                len += 1;
+            }
+            let name: OsString = OsStringExt::from_wide(slice::from_raw_parts(os_str, len as _));
+            name.into_string().unwrap()
+        };
+
+        Ok(api::PhysicalDeviceProperties {
+            device_name,
+            driver_id: api::DriverId::Wasapi,
+            sharing: api::SharingModeFlags::CONCURRENT | api::SharingModeFlags::EXCLUSIVE,
+            streams: physical_device.streams,
+        })
+    }
+
+    unsafe fn create_device(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+        input_sample_desc: Option<api::SampleDesc>,
+        output_sample_desc: Option<api::SampleDesc>,
+    ) -> Device {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+        let fence = Fence::create(false, false);
+
+        if let Some(sample_desc) = input_sample_desc {
+            let mix_format = map_sample_desc(&sample_desc).unwrap(); // todo
+            dbg!(physical_device.audio_client.Initialize(
+                map_sharing_mode(sharing),
+                AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+                0,
+                0,
+                &mix_format as *const _ as _,
+                ptr::null(),
+            ));
+        } else if let Some(sample_desc) = output_sample_desc {
+            let mix_format = map_sample_desc(&sample_desc).unwrap(); // todo
+            dbg!(physical_device.audio_client.Initialize(
+                map_sharing_mode(sharing),
+                AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+                0,
+                0,
+                &mix_format as *const _ as _,
+                ptr::null(),
+            ));
+        }
+
+        physical_device.audio_client.SetEventHandle(fence.0);
+
+        Device {
+            client: physical_device.audio_client,
+            fence,
+        }
+    }
+
+    unsafe fn destroy_device(&self, device: &mut Device) {
+        device.client.Release();
+        device.fence.destory();
+    }
+}
+
+impl Instance {
     unsafe fn get_physical_device_id(device: PhysicalDeviceRaw) -> String {
         let mut str_id = ptr::null_mut();
         device.GetId(&mut str_id);
@@ -172,74 +290,6 @@ impl Instance {
         collection.Release();
     }
 
-    pub unsafe fn enumerate_physical_devices(&self) -> Vec<api::PhysicalDevice> {
-        self.physical_devices
-            .values()
-            .map(|device| device.raw())
-            .collect()
-    }
-
-    pub unsafe fn default_physical_input_device(&self) -> Option<api::PhysicalDevice> {
-        let mut device = PhysicalDeviceRaw::null();
-        let _hr = self
-            .raw
-            .GetDefaultAudioEndpoint(eCapture, eConsole, device.mut_void() as *mut _);
-        if device.is_null() {
-            None
-        } else {
-            Some(device.as_mut_ptr() as _)
-        }
-    }
-
-    pub unsafe fn default_physical_output_device(&self) -> Option<api::PhysicalDevice> {
-        let mut device = PhysicalDeviceRaw::null();
-        let _hr = self
-            .raw
-            .GetDefaultAudioEndpoint(eRender, eConsole, device.mut_void() as *mut _);
-        if device.is_null() {
-            None
-        } else {
-            let id = Self::get_physical_device_id(device);
-            Some(self.physical_devices[&id].raw())
-        }
-    }
-
-    pub unsafe fn get_physical_device_properties(
-        &self,
-        physical_device: api::PhysicalDevice,
-    ) -> Result<api::PhysicalDeviceProperties> {
-        type PropertyStore = WeakPtr<IPropertyStore>;
-
-        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
-
-        let mut store = PropertyStore::null();
-        physical_device
-            .device
-            .OpenPropertyStore(STGM_READ, store.mut_void() as *mut _);
-
-        let device_name = {
-            let mut value = mem::uninitialized();
-            store.GetValue(
-                &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-                &mut value,
-            );
-            let os_str = *value.data.pwszVal();
-            let mut len = 0;
-            while *os_str.offset(len) != 0 {
-                len += 1;
-            }
-            let name: OsString = OsStringExt::from_wide(slice::from_raw_parts(os_str, len as _));
-            name.into_string().unwrap()
-        };
-
-        Ok(api::PhysicalDeviceProperties {
-            device_name,
-            driver_id: api::DriverId::Wasapi,
-            sharing: api::SharingModeFlags::CONCURRENT | api::SharingModeFlags::EXCLUSIVE,
-            streams: physical_device.streams,
-        })
-    }
-
     pub unsafe fn physical_device_supports_format(
         &self,
         physical_device: api::PhysicalDevice,
@@ -258,35 +308,6 @@ impl Instance {
             &mut closest_format
         ));
     }
-
-    pub unsafe fn create_device(
-        &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
-        sample_desc: api::SampleDesc,
-    ) -> Device {
-        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
-
-        let mut original_fmt = ptr::null_mut();
-        physical_device.audio_client.GetMixFormat(&mut original_fmt);
-        let mix_format = map_sample_desc(&sample_desc).unwrap(); // todo
-        dbg!(physical_device.audio_client.Initialize(
-            map_sharing_mode(sharing),
-            AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-            0,
-            0,
-            &mix_format as *const _ as _,
-            ptr::null(),
-        ));
-
-        let fence = Fence::create(false, false);
-        physical_device.audio_client.SetEventHandle(fence.0);
-
-        Device {
-            client: physical_device.audio_client,
-            fence,
-        }
-    }
 }
 
 impl std::ops::Drop for Instance {
@@ -302,11 +323,15 @@ pub struct Device {
     fence: Fence,
 }
 
-impl Device {
-    pub unsafe fn output_stream(&self) -> OutputStream {
-        let mut client = WeakPtr::<IAudioRenderClient>::null();
+impl api::Device for Device {
+    type OutputStream = OutputStream;
+    type InputStream = InputStream;
+
+    unsafe fn get_output_stream(&self) -> Result<OutputStream> {
+        let mut render_client = WeakPtr::<IAudioRenderClient>::null();
+
         self.client
-            .GetService(&IAudioRenderClient::uuidof(), client.mut_void() as *mut _);
+            .GetService(&IAudioRenderClient::uuidof(), render_client.mut_void() as _);
 
         let buffer_size = {
             let mut size = 0;
@@ -314,25 +339,37 @@ impl Device {
             size
         };
 
-        OutputStream {
+        Ok(OutputStream {
+            client: render_client,
             device: self.client,
-            client,
             buffer_size,
             fence: self.fence,
-        }
+        })
     }
 
-    pub unsafe fn input_stream(&self) -> InputStream {
-        let mut client = WeakPtr::<IAudioCaptureClient>::null();
-        self.client
-            .GetService(&IAudioCaptureClient::uuidof(), client.mut_void() as _);
+    unsafe fn get_input_stream(&self) -> Result<InputStream> {
+        let mut capture_client = WeakPtr::<IAudioCaptureClient>::null();
+        self.client.GetService(
+            &IAudioCaptureClient::uuidof(),
+            capture_client.mut_void() as _,
+        );
 
-        InputStream {
-            client,
+        Ok(InputStream {
+            client: capture_client,
             fence: self.fence,
-        }
+        })
     }
 
+    unsafe fn start(&self) {
+        self.client.Start();
+    }
+
+    unsafe fn stop(&self) {
+        self.client.Stop();
+    }
+}
+
+impl Device {
     pub unsafe fn properties(&self) -> api::DeviceProperties {
         let buffer_size = {
             let mut size = 0;
@@ -369,20 +406,14 @@ impl Device {
             _ => unimplemented!(),
         }
     }
-
-    pub unsafe fn start(&self) {
-        self.client.Start();
-    }
-
-    pub unsafe fn stop(&self) {
-        self.client.Stop();
-    }
 }
 
 pub struct InputStream {
     client: WeakPtr<IAudioCaptureClient>,
     fence: Fence,
 }
+
+impl api::InputStream for InputStream {}
 
 impl InputStream {
     pub unsafe fn acquire_buffer(&self, timeout_ms: u32) -> (*const u8, api::Frames) {
@@ -422,6 +453,8 @@ pub struct OutputStream {
     fence: Fence,
 }
 
+impl api::OutputStream for OutputStream {}
+
 impl OutputStream {
     pub unsafe fn acquire_buffer(&self, timeout_ms: u32) -> (*mut u8, api::Frames) {
         self.fence.wait(timeout_ms);
@@ -451,6 +484,10 @@ impl Fence {
             initial_state as _,
             ptr::null(),
         ))
+    }
+
+    unsafe fn destory(self) {
+        handleapi::CloseHandle(self.0);
     }
 
     unsafe fn wait(&self, timeout_ms: u32) -> u32 {

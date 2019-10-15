@@ -75,8 +75,8 @@ typedef sl_float64_t           Slfloat64;       /* 64 bit floating point   */
 
 
 typedef SLuint32                    SLboolean;
-#define SL_BOOLEAN_FALSE            ((SLboolean) 0x00000000)
-#define SL_BOOLEAN_TRUE             ((SLboolean) 0x00000001)
+#define SL_BOOLEAN_FALSE            (0x00000000)
+#define SL_BOOLEAN_TRUE             (0x00000001)
 
 typedef SLint16                     SLmillibel;
 typedef SLuint32                    SLmillisecond;
@@ -109,92 +109,92 @@ typedef const struct SLObjectItf_ * const * SLObjectItf;
 
 /* Objects ID's */
 
-#define SL_OBJECTID_ENGINE               ((SLuint32) 0x00001001)
-#define SL_OBJECTID_LEDDEVICE            ((SLuint32) 0x00001002)
-#define SL_OBJECTID_VIBRADEVICE          ((SLuint32) 0x00001003)
-#define SL_OBJECTID_AUDIOPLAYER          ((SLuint32) 0x00001004)
-#define SL_OBJECTID_AUDIORECORDER        ((SLuint32) 0x00001005)
-#define SL_OBJECTID_MIDIPLAYER           ((SLuint32) 0x00001006)
-#define SL_OBJECTID_LISTENER             ((SLuint32) 0x00001007)
-#define SL_OBJECTID_3DGROUP              ((SLuint32) 0x00001008)
-#define SL_OBJECTID_OUTPUTMIX            ((SLuint32) 0x00001009)
-#define SL_OBJECTID_METADATAEXTRACTOR    ((SLuint32) 0x0000100A)
+#define SL_OBJECTID_ENGINE               (0x00001001)
+#define SL_OBJECTID_LEDDEVICE            (0x00001002)
+#define SL_OBJECTID_VIBRADEVICE          (0x00001003)
+#define SL_OBJECTID_AUDIOPLAYER          (0x00001004)
+#define SL_OBJECTID_AUDIORECORDER        (0x00001005)
+#define SL_OBJECTID_MIDIPLAYER           (0x00001006)
+#define SL_OBJECTID_LISTENER             (0x00001007)
+#define SL_OBJECTID_3DGROUP              (0x00001008)
+#define SL_OBJECTID_OUTPUTMIX            (0x00001009)
+#define SL_OBJECTID_METADATAEXTRACTOR    (0x0000100A)
 
 
 /* SL Profiles */
 
-#define SL_PROFILES_PHONE    ((SLuint16) 0x0001)
-#define SL_PROFILES_MUSIC    ((SLuint16) 0x0002)
-#define SL_PROFILES_GAME    ((SLuint16) 0x0004)
+#define SL_PROFILES_PHONE    (0x0001)
+#define SL_PROFILES_MUSIC    (0x0002)
+#define SL_PROFILES_GAME    (0x0004)
 
 /* Types of voices supported by the system */
 
-#define SL_VOICETYPE_2D_AUDIO          ((SLuint16) 0x0001)
-#define SL_VOICETYPE_MIDI              ((SLuint16) 0x0002)
-#define SL_VOICETYPE_3D_AUDIO          ((SLuint16) 0x0004)
-#define SL_VOICETYPE_3D_MIDIOUTPUT     ((SLuint16) 0x0008)
+#define SL_VOICETYPE_2D_AUDIO          (0x0001)
+#define SL_VOICETYPE_MIDI              (0x0002)
+#define SL_VOICETYPE_3D_AUDIO          (0x0004)
+#define SL_VOICETYPE_3D_MIDIOUTPUT     (0x0008)
 
 /* Convenient macros representing various different priority levels, for use with the SetPriority method */
 
-#define SL_PRIORITY_LOWEST         ((SLuint32) 0xFFFFFFFF)
-#define SL_PRIORITY_VERYLOW        ((SLuint32) 0xE0000000)
-#define SL_PRIORITY_LOW            ((SLuint32) 0xC0000000)
-#define SL_PRIORITY_BELOWNORMAL    ((SLuint32) 0xA0000000)
-#define SL_PRIORITY_NORMAL         ((SLuint32) 0x7FFFFFFF)
-#define SL_PRIORITY_ABOVENORMAL    ((SLuint32) 0x60000000)
-#define SL_PRIORITY_HIGH           ((SLuint32) 0x40000000)
-#define SL_PRIORITY_VERYHIGH       ((SLuint32) 0x20000000)
-#define SL_PRIORITY_HIGHEST        ((SLuint32) 0x00000000)
+#define SL_PRIORITY_LOWEST         (0xFFFFFFFF)
+#define SL_PRIORITY_VERYLOW        (0xE0000000)
+#define SL_PRIORITY_LOW            (0xC0000000)
+#define SL_PRIORITY_BELOWNORMAL    (0xA0000000)
+#define SL_PRIORITY_NORMAL         (0x7FFFFFFF)
+#define SL_PRIORITY_ABOVENORMAL    (0x60000000)
+#define SL_PRIORITY_HIGH           (0x40000000)
+#define SL_PRIORITY_VERYHIGH       (0x20000000)
+#define SL_PRIORITY_HIGHEST        (0x00000000)
 
 /** These macros list types of PCM data **/
-#define SL_PCM_REPRESENTATION_SIGNED_INT       ((SLuint32) 0x00000001)
-#define SL_PCM_REPRESENTATION_UNSIGNED_INT     ((SLuint32) 0x00000002)
-#define SL_PCM_REPRESENTATION_FLOAT            ((SLuint32) 0x00000003)
+#define SL_PCM_REPRESENTATION_SIGNED_INT       (0x00000001)
+#define SL_PCM_REPRESENTATION_UNSIGNED_INT     (0x00000002)
+#define SL_PCM_REPRESENTATION_FLOAT            (0x00000003)
 
 /** These macros list the various sample formats that are possible on audio input and output devices. */
 
-#define SL_PCMSAMPLEFORMAT_FIXED_8     ((SLuint16) 0x0008)
-#define SL_PCMSAMPLEFORMAT_FIXED_16    ((SLuint16) 0x0010)
-#define SL_PCMSAMPLEFORMAT_FIXED_20    ((SLuint16) 0x0014)
-#define SL_PCMSAMPLEFORMAT_FIXED_24    ((SLuint16) 0x0018)
-#define SL_PCMSAMPLEFORMAT_FIXED_28    ((SLuint16) 0x001C)
-#define SL_PCMSAMPLEFORMAT_FIXED_32    ((SLuint16) 0x0020)
-#define SL_PCMSAMPLEFORMAT_FIXED_64    ((SLuint16) 0x0040)
+#define SL_PCMSAMPLEFORMAT_FIXED_8     (0x0008)
+#define SL_PCMSAMPLEFORMAT_FIXED_16    (0x0010)
+#define SL_PCMSAMPLEFORMAT_FIXED_20    (0x0014)
+#define SL_PCMSAMPLEFORMAT_FIXED_24    (0x0018)
+#define SL_PCMSAMPLEFORMAT_FIXED_28    (0x001C)
+#define SL_PCMSAMPLEFORMAT_FIXED_32    (0x0020)
+#define SL_PCMSAMPLEFORMAT_FIXED_64    (0x0040)
 
 /** These macros specify the commonly used sampling rates (in milliHertz) supported by most audio I/O devices. */
 
-#define SL_SAMPLINGRATE_8          ((SLuint32) 8000000)
-#define SL_SAMPLINGRATE_11_025     ((SLuint32) 11025000)
-#define SL_SAMPLINGRATE_12         ((SLuint32) 12000000)
-#define SL_SAMPLINGRATE_16         ((SLuint32) 16000000)
-#define SL_SAMPLINGRATE_22_05      ((SLuint32) 22050000)
-#define SL_SAMPLINGRATE_24         ((SLuint32) 24000000)
-#define SL_SAMPLINGRATE_32         ((SLuint32) 32000000)
-#define SL_SAMPLINGRATE_44_1       ((SLuint32) 44100000)
-#define SL_SAMPLINGRATE_48         ((SLuint32) 48000000)
-#define SL_SAMPLINGRATE_64         ((SLuint32) 64000000)
-#define SL_SAMPLINGRATE_88_2       ((SLuint32) 88200000)
-#define SL_SAMPLINGRATE_96         ((SLuint32) 96000000)
-#define SL_SAMPLINGRATE_192        ((SLuint32) 192000000)
+#define SL_SAMPLINGRATE_8          (8000000)
+#define SL_SAMPLINGRATE_11_025     (11025000)
+#define SL_SAMPLINGRATE_12         (12000000)
+#define SL_SAMPLINGRATE_16         (16000000)
+#define SL_SAMPLINGRATE_22_05      (22050000)
+#define SL_SAMPLINGRATE_24         (24000000)
+#define SL_SAMPLINGRATE_32         (32000000)
+#define SL_SAMPLINGRATE_44_1       (44100000)
+#define SL_SAMPLINGRATE_48         (48000000)
+#define SL_SAMPLINGRATE_64         (64000000)
+#define SL_SAMPLINGRATE_88_2       (88200000)
+#define SL_SAMPLINGRATE_96         (96000000)
+#define SL_SAMPLINGRATE_192        (192000000)
 
-#define SL_SPEAKER_FRONT_LEFT                  ((SLuint32) 0x00000001)
-#define SL_SPEAKER_FRONT_RIGHT                 ((SLuint32) 0x00000002)
-#define SL_SPEAKER_FRONT_CENTER                ((SLuint32) 0x00000004)
-#define SL_SPEAKER_LOW_FREQUENCY               ((SLuint32) 0x00000008)
-#define SL_SPEAKER_BACK_LEFT                   ((SLuint32) 0x00000010)
-#define SL_SPEAKER_BACK_RIGHT                  ((SLuint32) 0x00000020)
-#define SL_SPEAKER_FRONT_LEFT_OF_CENTER        ((SLuint32) 0x00000040)
-#define SL_SPEAKER_FRONT_RIGHT_OF_CENTER       ((SLuint32) 0x00000080)
-#define SL_SPEAKER_BACK_CENTER                 ((SLuint32) 0x00000100)
-#define SL_SPEAKER_SIDE_LEFT                   ((SLuint32) 0x00000200)
-#define SL_SPEAKER_SIDE_RIGHT                  ((SLuint32) 0x00000400)
-#define SL_SPEAKER_TOP_CENTER                  ((SLuint32) 0x00000800)
-#define SL_SPEAKER_TOP_FRONT_LEFT              ((SLuint32) 0x00001000)
-#define SL_SPEAKER_TOP_FRONT_CENTER            ((SLuint32) 0x00002000)
-#define SL_SPEAKER_TOP_FRONT_RIGHT             ((SLuint32) 0x00004000)
-#define SL_SPEAKER_TOP_BACK_LEFT               ((SLuint32) 0x00008000)
-#define SL_SPEAKER_TOP_BACK_CENTER             ((SLuint32) 0x00010000)
-#define SL_SPEAKER_TOP_BACK_RIGHT              ((SLuint32) 0x00020000)
+#define SL_SPEAKER_FRONT_LEFT                  (0x00000001)
+#define SL_SPEAKER_FRONT_RIGHT                 (0x00000002)
+#define SL_SPEAKER_FRONT_CENTER                (0x00000004)
+#define SL_SPEAKER_LOW_FREQUENCY               (0x00000008)
+#define SL_SPEAKER_BACK_LEFT                   (0x00000010)
+#define SL_SPEAKER_BACK_RIGHT                  (0x00000020)
+#define SL_SPEAKER_FRONT_LEFT_OF_CENTER        (0x00000040)
+#define SL_SPEAKER_FRONT_RIGHT_OF_CENTER       (0x00000080)
+#define SL_SPEAKER_BACK_CENTER                 (0x00000100)
+#define SL_SPEAKER_SIDE_LEFT                   (0x00000200)
+#define SL_SPEAKER_SIDE_RIGHT                  (0x00000400)
+#define SL_SPEAKER_TOP_CENTER                  (0x00000800)
+#define SL_SPEAKER_TOP_FRONT_LEFT              (0x00001000)
+#define SL_SPEAKER_TOP_FRONT_CENTER            (0x00002000)
+#define SL_SPEAKER_TOP_FRONT_RIGHT             (0x00004000)
+#define SL_SPEAKER_TOP_BACK_LEFT               (0x00008000)
+#define SL_SPEAKER_TOP_BACK_CENTER             (0x00010000)
+#define SL_SPEAKER_TOP_BACK_RIGHT              (0x00020000)
 
 
 /*****************************************************************************/
@@ -202,42 +202,42 @@ typedef const struct SLObjectItf_ * const * SLObjectItf;
 /*                                                                           */
 /*****************************************************************************/
 
-#define SL_RESULT_SUCCESS                      ((SLuint32) 0x00000000)
-#define SL_RESULT_PRECONDITIONS_VIOLATED       ((SLuint32) 0x00000001)
-#define SL_RESULT_PARAMETER_INVALID            ((SLuint32) 0x00000002)
-#define SL_RESULT_MEMORY_FAILURE               ((SLuint32) 0x00000003)
-#define SL_RESULT_RESOURCE_ERROR               ((SLuint32) 0x00000004)
-#define SL_RESULT_RESOURCE_LOST                ((SLuint32) 0x00000005)
-#define SL_RESULT_IO_ERROR                     ((SLuint32) 0x00000006)
-#define SL_RESULT_BUFFER_INSUFFICIENT          ((SLuint32) 0x00000007)
-#define SL_RESULT_CONTENT_CORRUPTED            ((SLuint32) 0x00000008)
-#define SL_RESULT_CONTENT_UNSUPPORTED          ((SLuint32) 0x00000009)
-#define SL_RESULT_CONTENT_NOT_FOUND            ((SLuint32) 0x0000000A)
-#define SL_RESULT_PERMISSION_DENIED            ((SLuint32) 0x0000000B)
-#define SL_RESULT_FEATURE_UNSUPPORTED          ((SLuint32) 0x0000000C)
-#define SL_RESULT_INTERNAL_ERROR               ((SLuint32) 0x0000000D)
-#define SL_RESULT_UNKNOWN_ERROR                ((SLuint32) 0x0000000E)
-#define SL_RESULT_OPERATION_ABORTED            ((SLuint32) 0x0000000F)
-#define SL_RESULT_CONTROL_LOST                 ((SLuint32) 0x00000010)
-#define SL_RESULT_READONLY                     ((SLuint32) 0x00000011)
-#define SL_RESULT_ENGINEOPTION_UNSUPPORTED     ((SLuint32) 0x00000012)
-#define SL_RESULT_SOURCE_SINK_INCOMPATIBLE     ((SLuint32) 0x00000013)
+#define SL_RESULT_SUCCESS                      (0x00000000)
+#define SL_RESULT_PRECONDITIONS_VIOLATED       (0x00000001)
+#define SL_RESULT_PARAMETER_INVALID            (0x00000002)
+#define SL_RESULT_MEMORY_FAILURE               (0x00000003)
+#define SL_RESULT_RESOURCE_ERROR               (0x00000004)
+#define SL_RESULT_RESOURCE_LOST                (0x00000005)
+#define SL_RESULT_IO_ERROR                     (0x00000006)
+#define SL_RESULT_BUFFER_INSUFFICIENT          (0x00000007)
+#define SL_RESULT_CONTENT_CORRUPTED            (0x00000008)
+#define SL_RESULT_CONTENT_UNSUPPORTED          (0x00000009)
+#define SL_RESULT_CONTENT_NOT_FOUND            (0x0000000A)
+#define SL_RESULT_PERMISSION_DENIED            (0x0000000B)
+#define SL_RESULT_FEATURE_UNSUPPORTED          (0x0000000C)
+#define SL_RESULT_INTERNAL_ERROR               (0x0000000D)
+#define SL_RESULT_UNKNOWN_ERROR                (0x0000000E)
+#define SL_RESULT_OPERATION_ABORTED            (0x0000000F)
+#define SL_RESULT_CONTROL_LOST                 (0x00000010)
+#define SL_RESULT_READONLY                     (0x00000011)
+#define SL_RESULT_ENGINEOPTION_UNSUPPORTED     (0x00000012)
+#define SL_RESULT_SOURCE_SINK_INCOMPATIBLE     (0x00000013)
 
 /* Object state definitions */
 
-#define SL_OBJECT_STATE_UNREALIZED             ((SLuint32) 0x00000001)
-#define SL_OBJECT_STATE_REALIZED               ((SLuint32) 0x00000002)
-#define SL_OBJECT_STATE_SUSPENDED              ((SLuint32) 0x00000003)
+#define SL_OBJECT_STATE_UNREALIZED             (0x00000001)
+#define SL_OBJECT_STATE_REALIZED               (0x00000002)
+#define SL_OBJECT_STATE_SUSPENDED              (0x00000003)
 
 /* Object event definitions */
 
-#define SL_OBJECT_EVENT_RUNTIME_ERROR              ((SLuint32) 0x00000001)
-#define SL_OBJECT_EVENT_ASYNC_TERMINATION          ((SLuint32) 0x00000002)
-#define SL_OBJECT_EVENT_RESOURCES_LOST             ((SLuint32) 0x00000003)
-#define SL_OBJECT_EVENT_RESOURCES_AVAILABLE        ((SLuint32) 0x00000004)
-#define SL_OBJECT_EVENT_ITF_CONTROL_TAKEN          ((SLuint32) 0x00000005)
-#define SL_OBJECT_EVENT_ITF_CONTROL_RETURNED       ((SLuint32) 0x00000006)
-#define SL_OBJECT_EVENT_ITF_PARAMETERS_CHANGED     ((SLuint32) 0x00000007)
+#define SL_OBJECT_EVENT_RUNTIME_ERROR              (0x00000001)
+#define SL_OBJECT_EVENT_ASYNC_TERMINATION          (0x00000002)
+#define SL_OBJECT_EVENT_RESOURCES_LOST             (0x00000003)
+#define SL_OBJECT_EVENT_RESOURCES_AVAILABLE        (0x00000004)
+#define SL_OBJECT_EVENT_ITF_CONTROL_TAKEN          (0x00000005)
+#define SL_OBJECT_EVENT_ITF_CONTROL_RETURNED       (0x00000006)
+#define SL_OBJECT_EVENT_ITF_PARAMETERS_CHANGED     (0x00000007)
 
 
 /*****************************************************************************/
@@ -253,16 +253,16 @@ SL_API extern const SLInterfaceID SL_IID_NULL;
 /*---------------------------------------------------------------------------*/
 
 /** Data locator macros  */
-#define SL_DATALOCATOR_NULL                   ((SLuint32) 0x00000000)
-#define SL_DATALOCATOR_URI                    ((SLuint32) 0x00000001)
-#define SL_DATALOCATOR_ADDRESS                ((SLuint32) 0x00000002)
-#define SL_DATALOCATOR_IODEVICE               ((SLuint32) 0x00000003)
-#define SL_DATALOCATOR_OUTPUTMIX              ((SLuint32) 0x00000004)
-#define SL_DATALOCATOR_RESERVED5              ((SLuint32) 0x00000005)
-#define SL_DATALOCATOR_BUFFERQUEUE            ((SLuint32) 0x00000006)
-#define SL_DATALOCATOR_MIDIBUFFERQUEUE        ((SLuint32) 0x00000007)
-#define SL_DATALOCATOR_MEDIAOBJECT            ((SLuint32) 0x00000008)
-#define SL_DATALOCATOR_CONTENTPIPE            ((SLuint32) 0x00000009)
+#define SL_DATALOCATOR_NULL                   (0x00000000)
+#define SL_DATALOCATOR_URI                    (0x00000001)
+#define SL_DATALOCATOR_ADDRESS                (0x00000002)
+#define SL_DATALOCATOR_IODEVICE               (0x00000003)
+#define SL_DATALOCATOR_OUTPUTMIX              (0x00000004)
+#define SL_DATALOCATOR_RESERVED5              (0x00000005)
+#define SL_DATALOCATOR_BUFFERQUEUE            (0x00000006)
+#define SL_DATALOCATOR_MIDIBUFFERQUEUE        (0x00000007)
+#define SL_DATALOCATOR_MEDIAOBJECT            (0x00000008)
+#define SL_DATALOCATOR_CONTENTPIPE            (0x00000009)
 
 
 /** URI-based data locator definition where locatorType must be SL_DATALOCATOR_URI*/
@@ -279,12 +279,12 @@ typedef struct SLDataLocator_Address_ {
 } SLDataLocator_Address;
 
 /** IODevice-types */
-#define SL_IODEVICE_AUDIOINPUT      ((SLuint32) 0x00000001)
-#define SL_IODEVICE_LEDARRAY        ((SLuint32) 0x00000002)
-#define SL_IODEVICE_VIBRA           ((SLuint32) 0x00000003)
-#define SL_IODEVICE_RESERVED4       ((SLuint32) 0x00000004)
-#define SL_IODEVICE_RESERVED5       ((SLuint32) 0x00000005)
-#define SL_IODEVICE_AUDIOOUTPUT     ((SLuint32) 0x00000006)
+#define SL_IODEVICE_AUDIOINPUT      (0x00000001)
+#define SL_IODEVICE_LEDARRAY        (0x00000002)
+#define SL_IODEVICE_VIBRA           (0x00000003)
+#define SL_IODEVICE_RESERVED4       (0x00000004)
+#define SL_IODEVICE_RESERVED5       (0x00000005)
+#define SL_IODEVICE_AUDIOOUTPUT     (0x00000006)
 
 /** IODevice-based data locator definition where locatorType must be SL_DATALOCATOR_IODEVICE*/
 typedef struct SLDataLocator_IODevice_ {
@@ -322,10 +322,10 @@ typedef struct SLDataLocator_MIDIBufferQueue_ {
 } SLDataLocator_MIDIBufferQueue;
 
 /** Data format defines */
-#define SL_DATAFORMAT_MIME        ((SLuint32) 0x00000001)
-#define SL_DATAFORMAT_PCM        ((SLuint32) 0x00000002)
-#define SL_DATAFORMAT_RESERVED3    ((SLuint32) 0x00000003)
-#define SL_DATAFORMAT_PCM_EX    ((SLuint32) 0x00000004)
+#define SL_DATAFORMAT_MIME        (0x00000001)
+#define SL_DATAFORMAT_PCM        (0x00000002)
+#define SL_DATAFORMAT_RESERVED3    (0x00000003)
+#define SL_DATAFORMAT_PCM_EX    (0x00000004)
 
 
 /** MIME-type-based data format definition where formatType must be SL_DATAFORMAT_MIME*/
@@ -336,8 +336,8 @@ typedef struct SLDataFormat_MIME_ {
 } SLDataFormat_MIME;
 
 /* Byte order of a block of 16- or 32-bit data */
-#define SL_BYTEORDER_BIGENDIAN                ((SLuint32) 0x00000001)
-#define SL_BYTEORDER_LITTLEENDIAN            ((SLuint32) 0x00000002)
+#define SL_BYTEORDER_BIGENDIAN                (0x00000001)
+#define SL_BYTEORDER_LITTLEENDIAN            (0x00000002)
 
 #ifdef SL_BYTEORDER_NATIVEBIGENDIAN
 #define SL_BYTEORDER_NATIVE                SL_BYTEORDER_BIGENDIAN
@@ -346,35 +346,35 @@ typedef struct SLDataFormat_MIME_ {
 #endif
 
 /* Container type */
-#define SL_CONTAINERTYPE_UNSPECIFIED    ((SLuint32) 0x00000001)
-#define SL_CONTAINERTYPE_RAW        ((SLuint32) 0x00000002)
-#define SL_CONTAINERTYPE_ASF        ((SLuint32) 0x00000003)
-#define SL_CONTAINERTYPE_AVI        ((SLuint32) 0x00000004)
-#define SL_CONTAINERTYPE_BMP        ((SLuint32) 0x00000005)
-#define SL_CONTAINERTYPE_JPG        ((SLuint32) 0x00000006)
-#define SL_CONTAINERTYPE_JPG2000        ((SLuint32) 0x00000007)
-#define SL_CONTAINERTYPE_M4A        ((SLuint32) 0x00000008)
-#define SL_CONTAINERTYPE_MP3        ((SLuint32) 0x00000009)
-#define SL_CONTAINERTYPE_MP4        ((SLuint32) 0x0000000A)
-#define SL_CONTAINERTYPE_MPEG_ES        ((SLuint32) 0x0000000B)
-#define SL_CONTAINERTYPE_MPEG_PS        ((SLuint32) 0x0000000C)
-#define SL_CONTAINERTYPE_MPEG_TS        ((SLuint32) 0x0000000D)
-#define SL_CONTAINERTYPE_QT        ((SLuint32) 0x0000000E)
-#define SL_CONTAINERTYPE_WAV        ((SLuint32) 0x0000000F)
-#define SL_CONTAINERTYPE_XMF_0        ((SLuint32) 0x00000010)
-#define SL_CONTAINERTYPE_XMF_1        ((SLuint32) 0x00000011)
-#define SL_CONTAINERTYPE_XMF_2        ((SLuint32) 0x00000012)
-#define SL_CONTAINERTYPE_XMF_3        ((SLuint32) 0x00000013)
-#define SL_CONTAINERTYPE_XMF_GENERIC    ((SLuint32) 0x00000014)
-#define SL_CONTAINERTYPE_AMR          ((SLuint32) 0x00000015)
-#define SL_CONTAINERTYPE_AAC        ((SLuint32) 0x00000016)
-#define SL_CONTAINERTYPE_3GPP        ((SLuint32) 0x00000017)
-#define SL_CONTAINERTYPE_3GA        ((SLuint32) 0x00000018)
-#define SL_CONTAINERTYPE_RM        ((SLuint32) 0x00000019)
-#define SL_CONTAINERTYPE_DMF        ((SLuint32) 0x0000001A)
-#define SL_CONTAINERTYPE_SMF        ((SLuint32) 0x0000001B)
-#define SL_CONTAINERTYPE_MOBILE_DLS    ((SLuint32) 0x0000001C)
-#define SL_CONTAINERTYPE_OGG    ((SLuint32) 0x0000001D)
+#define SL_CONTAINERTYPE_UNSPECIFIED    (0x00000001)
+#define SL_CONTAINERTYPE_RAW        (0x00000002)
+#define SL_CONTAINERTYPE_ASF        (0x00000003)
+#define SL_CONTAINERTYPE_AVI        (0x00000004)
+#define SL_CONTAINERTYPE_BMP        (0x00000005)
+#define SL_CONTAINERTYPE_JPG        (0x00000006)
+#define SL_CONTAINERTYPE_JPG2000        (0x00000007)
+#define SL_CONTAINERTYPE_M4A        (0x00000008)
+#define SL_CONTAINERTYPE_MP3        (0x00000009)
+#define SL_CONTAINERTYPE_MP4        (0x0000000A)
+#define SL_CONTAINERTYPE_MPEG_ES        (0x0000000B)
+#define SL_CONTAINERTYPE_MPEG_PS        (0x0000000C)
+#define SL_CONTAINERTYPE_MPEG_TS        (0x0000000D)
+#define SL_CONTAINERTYPE_QT        (0x0000000E)
+#define SL_CONTAINERTYPE_WAV        (0x0000000F)
+#define SL_CONTAINERTYPE_XMF_0        (0x00000010)
+#define SL_CONTAINERTYPE_XMF_1        (0x00000011)
+#define SL_CONTAINERTYPE_XMF_2        (0x00000012)
+#define SL_CONTAINERTYPE_XMF_3        (0x00000013)
+#define SL_CONTAINERTYPE_XMF_GENERIC    (0x00000014)
+#define SL_CONTAINERTYPE_AMR          (0x00000015)
+#define SL_CONTAINERTYPE_AAC        (0x00000016)
+#define SL_CONTAINERTYPE_3GPP        (0x00000017)
+#define SL_CONTAINERTYPE_3GA        (0x00000018)
+#define SL_CONTAINERTYPE_RM        (0x00000019)
+#define SL_CONTAINERTYPE_DMF        (0x0000001A)
+#define SL_CONTAINERTYPE_SMF        (0x0000001B)
+#define SL_CONTAINERTYPE_MOBILE_DLS    (0x0000001C)
+#define SL_CONTAINERTYPE_OGG    (0x0000001D)
 
 
 /** PCM-type-based data format definition where formatType must be SL_DATAFORMAT_PCM*/
@@ -493,11 +493,11 @@ struct SLObjectItf_ {
 /* Audio IO Device capabilities interface                                    */
 /*---------------------------------------------------------------------------*/
 
-#define SL_DEFAULTDEVICEID_AUDIOINPUT     ((SLuint32) 0xFFFFFFFF)
-#define SL_DEFAULTDEVICEID_AUDIOOUTPUT     ((SLuint32) 0xFFFFFFFE)
-#define SL_DEFAULTDEVICEID_LED          ((SLuint32) 0xFFFFFFFD)
-#define SL_DEFAULTDEVICEID_VIBRA        ((SLuint32) 0xFFFFFFFC)
-#define SL_DEFAULTDEVICEID_RESERVED1    ((SLuint32) 0xFFFFFFFB)
+#define SL_DEFAULTDEVICEID_AUDIOINPUT     (0xFFFFFFFF)
+#define SL_DEFAULTDEVICEID_AUDIOOUTPUT     (0xFFFFFFFE)
+#define SL_DEFAULTDEVICEID_LED          (0xFFFFFFFD)
+#define SL_DEFAULTDEVICEID_VIBRA        (0xFFFFFFFC)
+#define SL_DEFAULTDEVICEID_RESERVED1    (0xFFFFFFFB)
 
 
 #define SL_DEVCONNECTION_INTEGRATED         ((SLint16) 0x0001)
@@ -506,18 +506,18 @@ struct SLObjectItf_ {
 #define SL_DEVCONNECTION_NETWORK             ((SLint16) 0x0400)
 
 
-#define SL_DEVLOCATION_HANDSET     ((SLuint16) 0x0001)
-#define SL_DEVLOCATION_HEADSET     ((SLuint16) 0x0002)
-#define SL_DEVLOCATION_CARKIT     ((SLuint16) 0x0003)
-#define SL_DEVLOCATION_DOCK     ((SLuint16) 0x0004)
-#define SL_DEVLOCATION_REMOTE     ((SLuint16) 0x0005)
+#define SL_DEVLOCATION_HANDSET     (0x0001)
+#define SL_DEVLOCATION_HEADSET     (0x0002)
+#define SL_DEVLOCATION_CARKIT     (0x0003)
+#define SL_DEVLOCATION_DOCK     (0x0004)
+#define SL_DEVLOCATION_REMOTE     (0x0005)
 /* Note: SL_DEVLOCATION_RESLTE is deprecated, use SL_DEVLOCATION_REMOTE instead. */
-#define SL_DEVLOCATION_RESLTE     ((SLuint16) 0x0005)
+#define SL_DEVLOCATION_RESLTE     (0x0005)
 
 
-#define SL_DEVSCOPE_UNKNOWN     ((SLuint16) 0x0001)
-#define SL_DEVSCOPE_ENVIRONMENT ((SLuint16) 0x0002)
-#define SL_DEVSCOPE_USER        ((SLuint16) 0x0003)
+#define SL_DEVSCOPE_UNKNOWN     (0x0001)
+#define SL_DEVSCOPE_ENVIRONMENT (0x0002)
+#define SL_DEVSCOPE_USER        (0x0003)
 
 
 typedef struct SLAudioInputDescriptor_ {
@@ -753,40 +753,40 @@ struct SLVibraItf_ {
 /* Meta data extraction related types and interface                          */
 /*---------------------------------------------------------------------------*/
 
-#define SL_CHARACTERENCODING_UNKNOWN            ((SLuint32) 0x00000000)
-#define SL_CHARACTERENCODING_BINARY       ((SLuint32) 0x00000001)
-#define SL_CHARACTERENCODING_ASCII        ((SLuint32) 0x00000002)
-#define SL_CHARACTERENCODING_BIG5         ((SLuint32) 0x00000003)
-#define SL_CHARACTERENCODING_CODEPAGE1252        ((SLuint32) 0x00000004)
-#define SL_CHARACTERENCODING_GB2312            ((SLuint32) 0x00000005)
-#define SL_CHARACTERENCODING_HZGB2312            ((SLuint32) 0x00000006)
-#define SL_CHARACTERENCODING_GB12345            ((SLuint32) 0x00000007)
-#define SL_CHARACTERENCODING_GB18030            ((SLuint32) 0x00000008)
-#define SL_CHARACTERENCODING_GBK                ((SLuint32) 0x00000009)
-#define SL_CHARACTERENCODING_IMAPUTF7            ((SLuint32) 0x0000000A)
-#define SL_CHARACTERENCODING_ISO2022JP            ((SLuint32) 0x0000000B)
-#define SL_CHARACTERENCODING_ISO2022JP1        ((SLuint32) 0x0000000B)
-#define SL_CHARACTERENCODING_ISO88591            ((SLuint32) 0x0000000C)
-#define SL_CHARACTERENCODING_ISO885910            ((SLuint32) 0x0000000D)
-#define SL_CHARACTERENCODING_ISO885913            ((SLuint32) 0x0000000E)
-#define SL_CHARACTERENCODING_ISO885914            ((SLuint32) 0x0000000F)
-#define SL_CHARACTERENCODING_ISO885915            ((SLuint32) 0x00000010)
-#define SL_CHARACTERENCODING_ISO88592            ((SLuint32) 0x00000011)
-#define SL_CHARACTERENCODING_ISO88593            ((SLuint32) 0x00000012)
-#define SL_CHARACTERENCODING_ISO88594            ((SLuint32) 0x00000013)
-#define SL_CHARACTERENCODING_ISO88595            ((SLuint32) 0x00000014)
-#define SL_CHARACTERENCODING_ISO88596            ((SLuint32) 0x00000015)
-#define SL_CHARACTERENCODING_ISO88597            ((SLuint32) 0x00000016)
-#define SL_CHARACTERENCODING_ISO88598            ((SLuint32) 0x00000017)
-#define SL_CHARACTERENCODING_ISO88599            ((SLuint32) 0x00000018)
-#define SL_CHARACTERENCODING_ISOEUCJP            ((SLuint32) 0x00000019)
-#define SL_CHARACTERENCODING_SHIFTJIS            ((SLuint32) 0x0000001A)
-#define SL_CHARACTERENCODING_SMS7BIT            ((SLuint32) 0x0000001B)
-#define SL_CHARACTERENCODING_UTF7            ((SLuint32) 0x0000001C)
-#define SL_CHARACTERENCODING_UTF8            ((SLuint32) 0x0000001D)
-#define SL_CHARACTERENCODING_JAVACONFORMANTUTF8    ((SLuint32) 0x0000001E)
-#define SL_CHARACTERENCODING_UTF16BE            ((SLuint32) 0x0000001F)
-#define SL_CHARACTERENCODING_UTF16LE            ((SLuint32) 0x00000020)
+#define SL_CHARACTERENCODING_UNKNOWN            (0x00000000)
+#define SL_CHARACTERENCODING_BINARY       (0x00000001)
+#define SL_CHARACTERENCODING_ASCII        (0x00000002)
+#define SL_CHARACTERENCODING_BIG5         (0x00000003)
+#define SL_CHARACTERENCODING_CODEPAGE1252        (0x00000004)
+#define SL_CHARACTERENCODING_GB2312            (0x00000005)
+#define SL_CHARACTERENCODING_HZGB2312            (0x00000006)
+#define SL_CHARACTERENCODING_GB12345            (0x00000007)
+#define SL_CHARACTERENCODING_GB18030            (0x00000008)
+#define SL_CHARACTERENCODING_GBK                (0x00000009)
+#define SL_CHARACTERENCODING_IMAPUTF7            (0x0000000A)
+#define SL_CHARACTERENCODING_ISO2022JP            (0x0000000B)
+#define SL_CHARACTERENCODING_ISO2022JP1        (0x0000000B)
+#define SL_CHARACTERENCODING_ISO88591            (0x0000000C)
+#define SL_CHARACTERENCODING_ISO885910            (0x0000000D)
+#define SL_CHARACTERENCODING_ISO885913            (0x0000000E)
+#define SL_CHARACTERENCODING_ISO885914            (0x0000000F)
+#define SL_CHARACTERENCODING_ISO885915            (0x00000010)
+#define SL_CHARACTERENCODING_ISO88592            (0x00000011)
+#define SL_CHARACTERENCODING_ISO88593            (0x00000012)
+#define SL_CHARACTERENCODING_ISO88594            (0x00000013)
+#define SL_CHARACTERENCODING_ISO88595            (0x00000014)
+#define SL_CHARACTERENCODING_ISO88596            (0x00000015)
+#define SL_CHARACTERENCODING_ISO88597            (0x00000016)
+#define SL_CHARACTERENCODING_ISO88598            (0x00000017)
+#define SL_CHARACTERENCODING_ISO88599            (0x00000018)
+#define SL_CHARACTERENCODING_ISOEUCJP            (0x00000019)
+#define SL_CHARACTERENCODING_SHIFTJIS            (0x0000001A)
+#define SL_CHARACTERENCODING_SMS7BIT            (0x0000001B)
+#define SL_CHARACTERENCODING_UTF7            (0x0000001C)
+#define SL_CHARACTERENCODING_UTF8            (0x0000001D)
+#define SL_CHARACTERENCODING_JAVACONFORMANTUTF8    (0x0000001E)
+#define SL_CHARACTERENCODING_UTF16BE            (0x0000001F)
+#define SL_CHARACTERENCODING_UTF16LE            (0x00000020)
 
 
 #define SL_METADATA_FILTER_KEY        ((SLuint8) 0x01)
@@ -876,14 +876,14 @@ struct SLMetadataMessageItf_ {
 /* Meta data traversal related types and interface                           */
 /*---------------------------------------------------------------------------*/
 
-#define SL_METADATATRAVERSALMODE_ALL    ((SLuint32) 0x00000001)
-#define SL_METADATATRAVERSALMODE_NODE    ((SLuint32) 0x00000002)
+#define SL_METADATATRAVERSALMODE_ALL    (0x00000001)
+#define SL_METADATATRAVERSALMODE_NODE    (0x00000002)
 
 
-#define SL_NODETYPE_UNSPECIFIED    ((SLuint32) 0x00000001)
-#define SL_NODETYPE_AUDIO        ((SLuint32) 0x00000002)
-#define SL_NODETYPE_VIDEO        ((SLuint32) 0x00000003)
-#define SL_NODETYPE_IMAGE        ((SLuint32) 0x00000004)
+#define SL_NODETYPE_UNSPECIFIED    (0x00000001)
+#define SL_NODETYPE_AUDIO        (0x00000002)
+#define SL_NODETYPE_VIDEO        (0x00000003)
+#define SL_NODETYPE_IMAGE        (0x00000004)
 
 #define SL_NODE_PARENT 0xFFFFFFFF
 
@@ -1025,19 +1025,19 @@ struct SLOutputMixItf_ {
 /*---------------------------------------------------------------------------*/
 
 /** Playback states */
-#define SL_PLAYSTATE_STOPPED    ((SLuint32) 0x00000001)
-#define SL_PLAYSTATE_PAUSED    ((SLuint32) 0x00000002)
-#define SL_PLAYSTATE_PLAYING    ((SLuint32) 0x00000003)
+#define SL_PLAYSTATE_STOPPED    (0x00000001)
+#define SL_PLAYSTATE_PAUSED    (0x00000002)
+#define SL_PLAYSTATE_PLAYING    (0x00000003)
 
 /** Play events **/
-#define SL_PLAYEVENT_HEADATEND            ((SLuint32) 0x00000001)
-#define SL_PLAYEVENT_HEADATMARKER        ((SLuint32) 0x00000002)
-#define SL_PLAYEVENT_HEADATNEWPOS        ((SLuint32) 0x00000004)
-#define SL_PLAYEVENT_HEADMOVING            ((SLuint32) 0x00000008)
-#define SL_PLAYEVENT_HEADSTALLED        ((SLuint32) 0x00000010)
-#define SL_PLAYEVENT_DURATIONUPDATED    ((SLuint32) 0x00000020)
+#define SL_PLAYEVENT_HEADATEND            (0x00000001)
+#define SL_PLAYEVENT_HEADATMARKER        (0x00000002)
+#define SL_PLAYEVENT_HEADATNEWPOS        (0x00000004)
+#define SL_PLAYEVENT_HEADMOVING            (0x00000008)
+#define SL_PLAYEVENT_HEADSTALLED        (0x00000010)
+#define SL_PLAYEVENT_DURATIONUPDATED    (0x00000020)
 
-#define SL_TIME_UNKNOWN    ((SLuint32) 0xFFFFFFFF)
+#define SL_TIME_UNKNOWN    (0xFFFFFFFF)
 
 
 SL_API extern const SLInterfaceID SL_IID_PLAY;
@@ -1108,15 +1108,15 @@ struct SLPlayItf_ {
 /* Prefetch status interface                                                 */
 /*---------------------------------------------------------------------------*/
 
-#define SL_PREFETCHEVENT_STATUSCHANGE         ((SLuint32) 0x00000001)
-#define SL_PREFETCHEVENT_FILLLEVELCHANGE     ((SLuint32) 0x00000002)
-#define SL_PREFETCHEVENT_ERROR               ((SLuint32) 0x00000003)
-#define SL_PREFETCHEVENT_ERROR_UNRECOVERABLE ((SLuint32) 0x00000004)
+#define SL_PREFETCHEVENT_STATUSCHANGE         (0x00000001)
+#define SL_PREFETCHEVENT_FILLLEVELCHANGE     (0x00000002)
+#define SL_PREFETCHEVENT_ERROR               (0x00000003)
+#define SL_PREFETCHEVENT_ERROR_UNRECOVERABLE (0x00000004)
 
 
-#define SL_PREFETCHSTATUS_UNDERFLOW            ((SLuint32) 0x00000001)
-#define SL_PREFETCHSTATUS_SUFFICIENTDATA    ((SLuint32) 0x00000002)
-#define SL_PREFETCHSTATUS_OVERFLOW            ((SLuint32) 0x00000003)
+#define SL_PREFETCHSTATUS_UNDERFLOW            (0x00000001)
+#define SL_PREFETCHSTATUS_SUFFICIENTDATA    (0x00000002)
+#define SL_PREFETCHSTATUS_OVERFLOW            (0x00000003)
 
 
 SL_API extern const SLInterfaceID SL_IID_PREFETCHSTATUS;
@@ -1173,12 +1173,12 @@ struct SLPrefetchStatusItf_ {
 /* Playback Rate interface                                                   */
 /*---------------------------------------------------------------------------*/
 
-#define SL_RATEPROP_RESERVED1                  ((SLuint32) 0x00000001)
-#define SL_RATEPROP_RESERVED2                  ((SLuint32) 0x00000002)
-#define SL_RATEPROP_SILENTAUDIO                ((SLuint32) 0x00000100)
-#define SL_RATEPROP_STAGGEREDAUDIO    ((SLuint32) 0x00000200)
-#define SL_RATEPROP_NOPITCHCORAUDIO    ((SLuint32) 0x00000400)
-#define SL_RATEPROP_PITCHCORAUDIO    ((SLuint32) 0x00000800)
+#define SL_RATEPROP_RESERVED1                  (0x00000001)
+#define SL_RATEPROP_RESERVED2                  (0x00000002)
+#define SL_RATEPROP_SILENTAUDIO                (0x00000100)
+#define SL_RATEPROP_STAGGEREDAUDIO    (0x00000200)
+#define SL_RATEPROP_NOPITCHCORAUDIO    (0x00000400)
+#define SL_RATEPROP_PITCHCORAUDIO    (0x00000800)
 
 
 SL_API extern const SLInterfaceID SL_IID_PLAYBACKRATE;
@@ -1222,8 +1222,8 @@ struct SLPlaybackRateItf_ {
 /* Seek Interface                                                            */
 /*---------------------------------------------------------------------------*/
 
-#define SL_SEEKMODE_FAST        ((SLuint32) 0x0001)
-#define SL_SEEKMODE_ACCURATE    ((SLuint32) 0x0002)
+#define SL_SEEKMODE_FAST        (0x0001)
+#define SL_SEEKMODE_ACCURATE    (0x0002)
 
 SL_API extern const SLInterfaceID SL_IID_SEEK;
 
@@ -1255,21 +1255,21 @@ struct SLSeekItf_ {
 /*---------------------------------------------------------------------------*/
 
 /** Recording states */
-#define SL_RECORDSTATE_STOPPED     ((SLuint32) 0x00000001)
-#define SL_RECORDSTATE_PAUSED    ((SLuint32) 0x00000002)
-#define SL_RECORDSTATE_RECORDING    ((SLuint32) 0x00000003)
+#define SL_RECORDSTATE_STOPPED     (0x00000001)
+#define SL_RECORDSTATE_PAUSED    (0x00000002)
+#define SL_RECORDSTATE_RECORDING    (0x00000003)
 
 
 /** Record event **/
-#define SL_RECORDEVENT_HEADATLIMIT            ((SLuint32) 0x00000001)
-#define SL_RECORDEVENT_HEADATMARKER            ((SLuint32) 0x00000002)
-#define SL_RECORDEVENT_HEADATNEWPOS            ((SLuint32) 0x00000004)
-#define SL_RECORDEVENT_HEADMOVING            ((SLuint32) 0x00000008)
-#define SL_RECORDEVENT_HEADSTALLED             ((SLuint32) 0x00000010)
+#define SL_RECORDEVENT_HEADATLIMIT            (0x00000001)
+#define SL_RECORDEVENT_HEADATMARKER            (0x00000002)
+#define SL_RECORDEVENT_HEADATNEWPOS            (0x00000004)
+#define SL_RECORDEVENT_HEADMOVING            (0x00000008)
+#define SL_RECORDEVENT_HEADSTALLED             (0x00000010)
 /* Note: SL_RECORDEVENT_BUFFER_INSUFFICIENT is deprecated, use SL_RECORDEVENT_BUFFER_FULL instead. */
-#define SL_RECORDEVENT_BUFFER_INSUFFICIENT  ((SLuint32) 0x00000020)
-#define SL_RECORDEVENT_BUFFER_FULL            ((SLuint32) 0x00000020)
-#define SL_RECORDEVENT_BUFFERQUEUE_STARVED    ((SLuint32) 0x00000040)
+#define SL_RECORDEVENT_BUFFER_INSUFFICIENT  (0x00000020)
+#define SL_RECORDEVENT_BUFFER_FULL            (0x00000020)
+#define SL_RECORDEVENT_BUFFERQUEUE_STARVED    (0x00000040)
 
 
 SL_API extern const SLInterfaceID SL_IID_RECORD;
@@ -1339,7 +1339,7 @@ struct SLRecordItf_ {
 /* Equalizer interface                                                       */
 /*---------------------------------------------------------------------------*/
 
-#define SL_EQUALIZER_UNDEFINED                ((SLuint16) 0xFFFF)
+#define SL_EQUALIZER_UNDEFINED                (0xFFFF)
 
 SL_API extern const SLInterfaceID SL_IID_EQUALIZER;
 
@@ -1493,12 +1493,12 @@ struct SLDeviceVolumeItf_ {
 /* Buffer Queue Interface                                                    */
 /*---------------------------------------------------------------------------*/
 /** Flags for buffer queue events */
-#define SL_BUFFERQUEUEEVENT_PROCESSED    ((SLuint32) 0x00000001)
-#define SL_BUFFERQUEUEEVENT_UNREALIZED    ((SLuint32) 0x00000002)
-#define SL_BUFFERQUEUEEVENT_CLEARED        ((SLuint32) 0x00000004)
-#define SL_BUFFERQUEUEEVENT_STOPPED        ((SLuint32) 0x00000008)
-#define SL_BUFFERQUEUEEVENT_ERROR        ((SLuint32) 0x00000010)
-#define SL_BUFFERQUEUEEVENT_CONTENT_END    ((SLuint32) 0x00000020)
+#define SL_BUFFERQUEUEEVENT_PROCESSED    (0x00000001)
+#define SL_BUFFERQUEUEEVENT_UNREALIZED    (0x00000002)
+#define SL_BUFFERQUEUEEVENT_CLEARED        (0x00000004)
+#define SL_BUFFERQUEUEEVENT_STOPPED        (0x00000008)
+#define SL_BUFFERQUEUEEVENT_ERROR        (0x00000010)
+#define SL_BUFFERQUEUEEVENT_CONTENT_END    (0x00000020)
 
 SL_API extern const SLInterfaceID SL_IID_BUFFERQUEUE;
 
@@ -1582,13 +1582,13 @@ struct SLConfigExtensionsItf_ {
 /* PresetReverb                                                              */
 /*---------------------------------------------------------------------------*/
 
-#define SL_REVERBPRESET_NONE        ((SLuint16) 0x0000)
-#define SL_REVERBPRESET_SMALLROOM    ((SLuint16) 0x0001)
-#define SL_REVERBPRESET_MEDIUMROOM    ((SLuint16) 0x0002)
-#define SL_REVERBPRESET_LARGEROOM    ((SLuint16) 0x0003)
-#define SL_REVERBPRESET_MEDIUMHALL    ((SLuint16) 0x0004)
-#define SL_REVERBPRESET_LARGEHALL    ((SLuint16) 0x0005)
-#define SL_REVERBPRESET_PLATE         ((SLuint16) 0x0006)
+#define SL_REVERBPRESET_NONE        (0x0000)
+#define SL_REVERBPRESET_SMALLROOM    (0x0001)
+#define SL_REVERBPRESET_MEDIUMROOM    (0x0002)
+#define SL_REVERBPRESET_LARGEROOM    (0x0003)
+#define SL_REVERBPRESET_MEDIUMHALL    (0x0004)
+#define SL_REVERBPRESET_LARGEHALL    (0x0005)
+#define SL_REVERBPRESET_PLATE         (0x0006)
 
 
 SL_API extern const SLInterfaceID SL_IID_PRESETREVERB;
@@ -1855,12 +1855,12 @@ struct SL3DGroupingItf_ {
 /*---------------------------------------------------------------------------*/
 /* 3D Hint Interface                                                         */
 /*---------------------------------------------------------------------------*/
-#define SL_3DHINT_OFF                    ((SLuint16) 0x0000)
-#define SL_3DHINT_QUALITY_LOWEST        ((SLuint16) 0x0001)
-#define SL_3DHINT_QUALITY_LOW            ((SLuint16) 0x4000)
-#define SL_3DHINT_QUALITY_MEDIUM        ((SLuint16) 0x8000)
-#define SL_3DHINT_QUALITY_HIGH            ((SLuint16) 0xC000)
-#define SL_3DHINT_QUALITY_HIGHEST        ((SLuint16) 0xFFFF)
+#define SL_3DHINT_OFF                    (0x0000)
+#define SL_3DHINT_QUALITY_LOWEST        (0x0001)
+#define SL_3DHINT_QUALITY_LOW            (0x4000)
+#define SL_3DHINT_QUALITY_MEDIUM        (0x8000)
+#define SL_3DHINT_QUALITY_HIGH            (0xC000)
+#define SL_3DHINT_QUALITY_HIGHEST        (0xFFFF)
 
 SL_API extern const SLInterfaceID SL_IID_3DHINT;
 
@@ -1997,8 +1997,8 @@ struct SL3DDopplerItf_ {
 /* 3D Source Interface and associated defines                                */
 /* --------------------------------------------------------------------------*/
 
-#define SL_ROLLOFFMODEL_EXPONENTIAL    ((SLuint32) 0x00000000)
-#define SL_ROLLOFFMODEL_LINEAR        ((SLuint32) 0x00000001)
+#define SL_ROLLOFFMODEL_EXPONENTIAL    (0x00000000)
+#define SL_ROLLOFFMODEL_LINEAR        (0x00000001)
 
 
 SL_API extern const SLInterfaceID SL_IID_3DSOURCE;
@@ -2158,11 +2158,11 @@ struct SLMuteSoloItf_ {
 /* Dynamic Interface Management Interface and associated types and macros    */
 /* --------------------------------------------------------------------------*/
 
-#define SL_DYNAMIC_ITF_EVENT_RUNTIME_ERROR            ((SLuint32) 0x00000001)
-#define SL_DYNAMIC_ITF_EVENT_ASYNC_TERMINATION        ((SLuint32) 0x00000002)
-#define SL_DYNAMIC_ITF_EVENT_RESOURCES_LOST            ((SLuint32) 0x00000003)
-#define SL_DYNAMIC_ITF_EVENT_RESOURCES_LOST_PERMANENTLY    ((SLuint32) 0x00000004)
-#define SL_DYNAMIC_ITF_EVENT_RESOURCES_AVAILABLE        ((SLuint32) 0x00000005)
+#define SL_DYNAMIC_ITF_EVENT_RUNTIME_ERROR            (0x00000001)
+#define SL_DYNAMIC_ITF_EVENT_ASYNC_TERMINATION        (0x00000002)
+#define SL_DYNAMIC_ITF_EVENT_RESOURCES_LOST            (0x00000003)
+#define SL_DYNAMIC_ITF_EVENT_RESOURCES_LOST_PERMANENTLY    (0x00000004)
+#define SL_DYNAMIC_ITF_EVENT_RESOURCES_AVAILABLE        (0x00000005)
 
 
 
@@ -2207,13 +2207,13 @@ struct SLDynamicInterfaceManagementItf_ {
 /* Midi Message Interface and associated types                               */
 /* --------------------------------------------------------------------------*/
 
-#define SL_MIDIMESSAGETYPE_NOTE_ON_OFF        ((SLuint32) 0x00000001)
-#define SL_MIDIMESSAGETYPE_POLY_PRESSURE    ((SLuint32) 0x00000002)
-#define SL_MIDIMESSAGETYPE_CONTROL_CHANGE    ((SLuint32) 0x00000003)
-#define SL_MIDIMESSAGETYPE_PROGRAM_CHANGE    ((SLuint32) 0x00000004)
-#define SL_MIDIMESSAGETYPE_CHANNEL_PRESSURE    ((SLuint32) 0x00000005)
-#define SL_MIDIMESSAGETYPE_PITCH_BEND        ((SLuint32) 0x00000006)
-#define SL_MIDIMESSAGETYPE_SYSTEM_MESSAGE    ((SLuint32) 0x00000007)
+#define SL_MIDIMESSAGETYPE_NOTE_ON_OFF        (0x00000001)
+#define SL_MIDIMESSAGETYPE_POLY_PRESSURE    (0x00000002)
+#define SL_MIDIMESSAGETYPE_CONTROL_CHANGE    (0x00000003)
+#define SL_MIDIMESSAGETYPE_PROGRAM_CHANGE    (0x00000004)
+#define SL_MIDIMESSAGETYPE_CHANNEL_PRESSURE    (0x00000005)
+#define SL_MIDIMESSAGETYPE_PITCH_BEND        (0x00000006)
+#define SL_MIDIMESSAGETYPE_SYSTEM_MESSAGE    (0x00000007)
 
 
 SL_API extern const SLInterfaceID SL_IID_MIDIMESSAGE;
@@ -2396,86 +2396,86 @@ struct SLMIDITimeItf_ {
 /* --------------------------------------------------------------------------*/
 
 /*Audio Codec related defines*/
-#define SL_AUDIOSTREAMFORMAT_UNDEFINED        ((SLuint32) 0x00000000)
+#define SL_AUDIOSTREAMFORMAT_UNDEFINED        (0x00000000)
 
-#define SL_RATECONTROLMODE_CONSTANTBITRATE    ((SLuint32) 0x00000001)
-#define SL_RATECONTROLMODE_VARIABLEBITRATE    ((SLuint32) 0x00000002)
+#define SL_RATECONTROLMODE_CONSTANTBITRATE    (0x00000001)
+#define SL_RATECONTROLMODE_VARIABLEBITRATE    (0x00000002)
 
-#define SL_AUDIOCODEC_PCM         ((SLuint32) 0x00000001)
-#define SL_AUDIOCODEC_MP3         ((SLuint32) 0x00000002)
-#define SL_AUDIOCODEC_AMR         ((SLuint32) 0x00000003)
-#define SL_AUDIOCODEC_AMRWB       ((SLuint32) 0x00000004)
-#define SL_AUDIOCODEC_AMRWBPLUS   ((SLuint32) 0x00000005)
-#define SL_AUDIOCODEC_AAC         ((SLuint32) 0x00000006)
-#define SL_AUDIOCODEC_WMA         ((SLuint32) 0x00000007)
-#define SL_AUDIOCODEC_REAL        ((SLuint32) 0x00000008)
-#define SL_AUDIOCODEC_VORBIS      ((SLuint32) 0x00000009)
+#define SL_AUDIOCODEC_PCM         (0x00000001)
+#define SL_AUDIOCODEC_MP3         (0x00000002)
+#define SL_AUDIOCODEC_AMR         (0x00000003)
+#define SL_AUDIOCODEC_AMRWB       (0x00000004)
+#define SL_AUDIOCODEC_AMRWBPLUS   (0x00000005)
+#define SL_AUDIOCODEC_AAC         (0x00000006)
+#define SL_AUDIOCODEC_WMA         (0x00000007)
+#define SL_AUDIOCODEC_REAL        (0x00000008)
+#define SL_AUDIOCODEC_VORBIS      (0x00000009)
 
-#define SL_AUDIOPROFILE_PCM                   ((SLuint32) 0x00000001)
+#define SL_AUDIOPROFILE_PCM                   (0x00000001)
 
-#define SL_AUDIOPROFILE_MPEG1_L3              ((SLuint32) 0x00000001)
-#define SL_AUDIOPROFILE_MPEG2_L3              ((SLuint32) 0x00000002)
-#define SL_AUDIOPROFILE_MPEG25_L3             ((SLuint32) 0x00000003)
+#define SL_AUDIOPROFILE_MPEG1_L3              (0x00000001)
+#define SL_AUDIOPROFILE_MPEG2_L3              (0x00000002)
+#define SL_AUDIOPROFILE_MPEG25_L3             (0x00000003)
 
-#define SL_AUDIOCHANMODE_MP3_MONO             ((SLuint32) 0x00000001)
-#define SL_AUDIOCHANMODE_MP3_STEREO           ((SLuint32) 0x00000002)
-#define SL_AUDIOCHANMODE_MP3_JOINTSTEREO      ((SLuint32) 0x00000003)
-#define SL_AUDIOCHANMODE_MP3_DUAL             ((SLuint32) 0x00000004)
+#define SL_AUDIOCHANMODE_MP3_MONO             (0x00000001)
+#define SL_AUDIOCHANMODE_MP3_STEREO           (0x00000002)
+#define SL_AUDIOCHANMODE_MP3_JOINTSTEREO      (0x00000003)
+#define SL_AUDIOCHANMODE_MP3_DUAL             (0x00000004)
 
-#define SL_AUDIOPROFILE_AMR            ((SLuint32) 0x00000001)
+#define SL_AUDIOPROFILE_AMR            (0x00000001)
 
-#define SL_AUDIOSTREAMFORMAT_CONFORMANCE    ((SLuint32) 0x00000001)
-#define SL_AUDIOSTREAMFORMAT_IF1            ((SLuint32) 0x00000002)
-#define SL_AUDIOSTREAMFORMAT_IF2            ((SLuint32) 0x00000003)
-#define SL_AUDIOSTREAMFORMAT_FSF            ((SLuint32) 0x00000004)
-#define SL_AUDIOSTREAMFORMAT_RTPPAYLOAD    ((SLuint32) 0x00000005)
-#define SL_AUDIOSTREAMFORMAT_ITU            ((SLuint32) 0x00000006)
+#define SL_AUDIOSTREAMFORMAT_CONFORMANCE    (0x00000001)
+#define SL_AUDIOSTREAMFORMAT_IF1            (0x00000002)
+#define SL_AUDIOSTREAMFORMAT_IF2            (0x00000003)
+#define SL_AUDIOSTREAMFORMAT_FSF            (0x00000004)
+#define SL_AUDIOSTREAMFORMAT_RTPPAYLOAD    (0x00000005)
+#define SL_AUDIOSTREAMFORMAT_ITU            (0x00000006)
 
-#define SL_AUDIOPROFILE_AMRWB            ((SLuint32) 0x00000001)
+#define SL_AUDIOPROFILE_AMRWB            (0x00000001)
 
-#define SL_AUDIOPROFILE_AMRWBPLUS        ((SLuint32) 0x00000001)
+#define SL_AUDIOPROFILE_AMRWBPLUS        (0x00000001)
 
-#define SL_AUDIOPROFILE_AAC_AAC            ((SLuint32) 0x00000001)
+#define SL_AUDIOPROFILE_AAC_AAC            (0x00000001)
 
-#define SL_AUDIOMODE_AAC_MAIN            ((SLuint32) 0x00000001)
-#define SL_AUDIOMODE_AAC_LC            ((SLuint32) 0x00000002)
-#define SL_AUDIOMODE_AAC_SSR            ((SLuint32) 0x00000003)
-#define SL_AUDIOMODE_AAC_LTP            ((SLuint32) 0x00000004)
-#define SL_AUDIOMODE_AAC_HE            ((SLuint32) 0x00000005)
-#define SL_AUDIOMODE_AAC_SCALABLE        ((SLuint32) 0x00000006)
-#define SL_AUDIOMODE_AAC_ERLC            ((SLuint32) 0x00000007)
-#define SL_AUDIOMODE_AAC_LD            ((SLuint32) 0x00000008)
-#define SL_AUDIOMODE_AAC_HE_PS            ((SLuint32) 0x00000009)
-#define SL_AUDIOMODE_AAC_HE_MPS            ((SLuint32) 0x0000000A)
+#define SL_AUDIOMODE_AAC_MAIN            (0x00000001)
+#define SL_AUDIOMODE_AAC_LC            (0x00000002)
+#define SL_AUDIOMODE_AAC_SSR            (0x00000003)
+#define SL_AUDIOMODE_AAC_LTP            (0x00000004)
+#define SL_AUDIOMODE_AAC_HE            (0x00000005)
+#define SL_AUDIOMODE_AAC_SCALABLE        (0x00000006)
+#define SL_AUDIOMODE_AAC_ERLC            (0x00000007)
+#define SL_AUDIOMODE_AAC_LD            (0x00000008)
+#define SL_AUDIOMODE_AAC_HE_PS            (0x00000009)
+#define SL_AUDIOMODE_AAC_HE_MPS            (0x0000000A)
 
-#define SL_AUDIOSTREAMFORMAT_MP2ADTS        ((SLuint32) 0x00000001)
-#define SL_AUDIOSTREAMFORMAT_MP4ADTS        ((SLuint32) 0x00000002)
-#define SL_AUDIOSTREAMFORMAT_MP4LOAS        ((SLuint32) 0x00000003)
-#define SL_AUDIOSTREAMFORMAT_MP4LATM        ((SLuint32) 0x00000004)
-#define SL_AUDIOSTREAMFORMAT_ADIF        ((SLuint32) 0x00000005)
-#define SL_AUDIOSTREAMFORMAT_MP4FF        ((SLuint32) 0x00000006)
-#define SL_AUDIOSTREAMFORMAT_RAW            ((SLuint32) 0x00000007)
+#define SL_AUDIOSTREAMFORMAT_MP2ADTS        (0x00000001)
+#define SL_AUDIOSTREAMFORMAT_MP4ADTS        (0x00000002)
+#define SL_AUDIOSTREAMFORMAT_MP4LOAS        (0x00000003)
+#define SL_AUDIOSTREAMFORMAT_MP4LATM        (0x00000004)
+#define SL_AUDIOSTREAMFORMAT_ADIF        (0x00000005)
+#define SL_AUDIOSTREAMFORMAT_MP4FF        (0x00000006)
+#define SL_AUDIOSTREAMFORMAT_RAW            (0x00000007)
 
-#define SL_AUDIOPROFILE_WMA7        ((SLuint32) 0x00000001)
-#define SL_AUDIOPROFILE_WMA8        ((SLuint32) 0x00000002)
-#define SL_AUDIOPROFILE_WMA9        ((SLuint32) 0x00000003)
-#define SL_AUDIOPROFILE_WMA10        ((SLuint32) 0x00000004)
+#define SL_AUDIOPROFILE_WMA7        (0x00000001)
+#define SL_AUDIOPROFILE_WMA8        (0x00000002)
+#define SL_AUDIOPROFILE_WMA9        (0x00000003)
+#define SL_AUDIOPROFILE_WMA10        (0x00000004)
 
-#define SL_AUDIOMODE_WMA_LEVEL1        ((SLuint32) 0x00000001)
-#define SL_AUDIOMODE_WMA_LEVEL2        ((SLuint32) 0x00000002)
-#define SL_AUDIOMODE_WMA_LEVEL3        ((SLuint32) 0x00000003)
-#define SL_AUDIOMODE_WMA_LEVEL4        ((SLuint32) 0x00000004)
-#define SL_AUDIOMODE_WMAPRO_LEVELM0    ((SLuint32) 0x00000005)
-#define SL_AUDIOMODE_WMAPRO_LEVELM1    ((SLuint32) 0x00000006)
-#define SL_AUDIOMODE_WMAPRO_LEVELM2    ((SLuint32) 0x00000007)
-#define SL_AUDIOMODE_WMAPRO_LEVELM3    ((SLuint32) 0x00000008)
+#define SL_AUDIOMODE_WMA_LEVEL1        (0x00000001)
+#define SL_AUDIOMODE_WMA_LEVEL2        (0x00000002)
+#define SL_AUDIOMODE_WMA_LEVEL3        (0x00000003)
+#define SL_AUDIOMODE_WMA_LEVEL4        (0x00000004)
+#define SL_AUDIOMODE_WMAPRO_LEVELM0    (0x00000005)
+#define SL_AUDIOMODE_WMAPRO_LEVELM1    (0x00000006)
+#define SL_AUDIOMODE_WMAPRO_LEVELM2    (0x00000007)
+#define SL_AUDIOMODE_WMAPRO_LEVELM3    (0x00000008)
 
-#define SL_AUDIOPROFILE_REALAUDIO        ((SLuint32) 0x00000001)
+#define SL_AUDIOPROFILE_REALAUDIO        (0x00000001)
 
-#define SL_AUDIOMODE_REALAUDIO_G2        ((SLuint32) 0x00000001)
-#define SL_AUDIOMODE_REALAUDIO_8            ((SLuint32) 0x00000002)
-#define SL_AUDIOMODE_REALAUDIO_10        ((SLuint32) 0x00000003)
-#define SL_AUDIOMODE_REALAUDIO_SURROUND    ((SLuint32) 0x00000004)
+#define SL_AUDIOMODE_REALAUDIO_G2        (0x00000001)
+#define SL_AUDIOMODE_REALAUDIO_8            (0x00000002)
+#define SL_AUDIOMODE_REALAUDIO_10        (0x00000003)
+#define SL_AUDIOMODE_REALAUDIO_SURROUND    (0x00000004)
 
 typedef struct SLAudioCodecDescriptor_ {
     SLuint32      maxChannels;
@@ -2936,11 +2936,11 @@ struct SLThreadSyncItf_ {
 /* SL engine constructor                                                     */
 /*****************************************************************************/
 
-#define SL_ENGINEOPTION_THREADSAFE        ((SLuint32) 0x00000001)
-#define SL_ENGINEOPTION_LOSSOFCONTROL    ((SLuint32) 0x00000002)
-#define SL_ENGINEOPTION_MAJORVERSION    ((SLuint32) 0x00000003)
-#define SL_ENGINEOPTION_MINORVERSION    ((SLuint32) 0x00000004)
-#define SL_ENGINEOPTION_STEPVERSION        ((SLuint32) 0x00000005)
+#define SL_ENGINEOPTION_THREADSAFE        (0x00000001)
+#define SL_ENGINEOPTION_LOSSOFCONTROL    (0x00000002)
+#define SL_ENGINEOPTION_MAJORVERSION    (0x00000003)
+#define SL_ENGINEOPTION_MINORVERSION    (0x00000004)
+#define SL_ENGINEOPTION_STEPVERSION        (0x00000005)
 
 
 typedef struct SLEngineOption_ {

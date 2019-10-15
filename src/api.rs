@@ -4,11 +4,13 @@ use std::{error, fmt, result};
 
 pub type PhysicalDevice = handle::RawHandle;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DriverId {
     Wasapi,
     PulseAudio,
     OpenSLES,
+    CoreAudio,
+    WebAudio,
 }
 
 bitflags::bitflags! {
@@ -22,7 +24,7 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SharingMode {
     Exclusive,
     Concurrent,
@@ -93,3 +95,45 @@ impl fmt::Display for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+pub trait Instance {
+    type Device: Device;
+
+    unsafe fn create(name: &str) -> Self;
+
+    unsafe fn enumerate_physical_devices(&self) -> Vec<PhysicalDevice>;
+
+    unsafe fn default_physical_input_device(&self) -> Option<PhysicalDevice>;
+
+    unsafe fn default_physical_output_device(&self) -> Option<PhysicalDevice>;
+
+    unsafe fn get_physical_device_properties(
+        &self,
+        physical_device: PhysicalDevice,
+    ) -> Result<PhysicalDeviceProperties>;
+
+    unsafe fn create_device(
+        &self,
+        physical_device: PhysicalDevice,
+        sharing: SharingMode,
+        input_sample_desc: Option<SampleDesc>,
+        output_sample_desc: Option<SampleDesc>,
+    ) -> Self::Device;
+
+    unsafe fn destroy_device(&self, device: &mut Self::Device);
+}
+
+pub trait Device {
+    type OutputStream: OutputStream;
+    type InputStream: InputStream;
+
+    unsafe fn get_output_stream(&self) -> Result<Self::OutputStream>;
+    unsafe fn get_input_stream(&self) -> Result<Self::InputStream>;
+
+    unsafe fn start(&self);
+    unsafe fn stop(&self);
+}
+
+pub trait OutputStream {}
+
+pub trait InputStream {}

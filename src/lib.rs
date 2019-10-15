@@ -10,6 +10,9 @@ pub mod opensles;
 #[cfg(target_os = "macos")]
 pub mod coreaudio;
 
+#[cfg(target_os = "wasm32")]
+pub mod webaudio;
+
 pub(crate) mod api;
 mod handle;
 

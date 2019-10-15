@@ -1,11 +1,26 @@
-use crate::{
-    ChannelMask, DeviceProperties, DriverId, Format, Frames, PhysicalDeviceProperties, SampleDesc,
-    SharingModeFlags,
-};
+use crate::{api, api::Result, handle::Handle};
 use libpulse_sys as pulse;
+use std::collections::HashMap;
 use std::ffi::c_void;
 use std::ffi::CStr;
 use std::ptr;
+
+pub struct PhysicalDevice {
+    device_name: String,
+    streams: api::StreamFlags,
+}
+
+type PhysialDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
+
+// impl PhysicalDevice {
+//     pub unsafe fn properties(&self) -> api::PhysicalDeviceProperties {
+//         api::PhysicalDeviceProperties {
+//             device_name: self.name.clone(),
+//             driver_id: api::DriverId::PulseAudio,
+//             sharing: api::SharingModeFlags::CONCURRENT,
+//         }
+//     }
+// }
 
 extern "C" fn sink_info_cb(
     context: *mut pulse::pa_context,
@@ -18,15 +33,25 @@ extern "C" fn sink_info_cb(
     }
 
     let info = unsafe { &*info };
-    let physical_devices = unsafe { &mut *(user as *mut Vec<PhysicalDevice>) };
+    let physical_devices = unsafe { &mut *(user as *mut PhysialDeviceMap) };
 
-    physical_devices.push(PhysicalDevice {
-        name: unsafe {
-            CStr::from_ptr(info.description)
-                .to_string_lossy()
-                .into_owned()
-        },
-    });
+    let name = unsafe {
+        CStr::from_ptr(info.description)
+            .to_string_lossy()
+            .into_owned()
+    };
+    let device_name = name.clone(); // TODO:
+    physical_devices
+        .entry(name)
+        .and_modify(|device| {
+            device.streams |= api::StreamFlags::OUTPUT;
+        })
+        .or_insert_with(|| {
+            Handle::new(PhysicalDevice {
+                device_name,
+                streams: api::StreamFlags::OUTPUT,
+            })
+        });
 }
 
 extern "C" fn source_info_cb(
@@ -40,45 +65,45 @@ extern "C" fn source_info_cb(
     }
 
     let info = unsafe { &*info };
-    let physical_devices = unsafe { &mut *(user as *mut Vec<PhysicalDevice>) };
-    physical_devices.push(PhysicalDevice {
-        name: unsafe {
-            CStr::from_ptr(info.description)
-                .to_string_lossy()
-                .into_owned()
-        },
-    });
+    let physical_devices = unsafe { &mut *(user as *mut PhysialDeviceMap) };
+
+    let name = unsafe {
+        CStr::from_ptr(info.description)
+            .to_string_lossy()
+            .into_owned()
+    };
+    let device_name = name.clone(); // TODO:
+    physical_devices
+        .entry(name)
+        .and_modify(|device| {
+            device.streams |= api::StreamFlags::INPUT;
+        })
+        .or_insert_with(|| {
+            Handle::new(PhysicalDevice {
+                device_name,
+                streams: api::StreamFlags::INPUT,
+            })
+        });
 }
 
-pub struct PhysicalDevice {
-    name: String,
-}
-
-impl PhysicalDevice {
-    pub unsafe fn properties(&self) -> PhysicalDeviceProperties {
-        PhysicalDeviceProperties {
-            device_name: self.name.clone(),
-            driver_id: DriverId::PulseAudio,
-            sharing: SharingModeFlags::CONCURRENT,
-        }
-    }
-}
-
-fn map_format(format: Format) -> pulse::pa_sample_format_t {
+fn map_format(format: api::Format) -> pulse::pa_sample_format_t {
     match format {
-        Format::I16 => pulse::pa_sample_format_t::S16le,
-        Format::F32 => pulse::pa_sample_format_t::F32le,
+        api::Format::I16 => pulse::pa_sample_format_t::S16le,
+        api::Format::F32 => pulse::pa_sample_format_t::F32le,
         _ => unimplemented!(),
     }
 }
 
 pub struct Instance {
-    pub mainloop: *mut pulse::pa_mainloop,
-    pub context: *mut pulse::pa_context,
+    mainloop: *mut pulse::pa_mainloop,
+    context: *mut pulse::pa_context,
+    physical_devices: PhysialDeviceMap,
 }
 
-impl Instance {
-    pub unsafe fn create(name: &str) -> Self {
+impl api::Instance for Instance {
+    type Device = Device;
+
+    unsafe fn create(name: &str) -> Self {
         let name = std::ffi::CString::new(name).unwrap();
         let mainloop = pulse::pa_mainloop_new();
         let api = pulse::pa_mainloop_get_api(mainloop);
@@ -93,47 +118,72 @@ impl Instance {
             }
         }
 
-        Instance { mainloop, context }
-    }
+        let mut physical_devices = PhysialDeviceMap::new();
 
-    unsafe fn await_operation(&self, operation: *mut pulse::pa_operation) {
-        loop {
-            let state = pulse::pa_operation_get_state(operation);
-            if state != pulse::PA_OPERATION_RUNNING {
-                pulse::pa_operation_unref(operation);
-                break;
-            }
-            pulse::pa_mainloop_iterate(self.mainloop, true as _, ptr::null_mut());
-        }
-    }
-
-    pub unsafe fn enumerate_physical_output_devices(&self) -> Vec<PhysicalDevice> {
-        let mut physical_devices = Vec::new();
+        // input devices
         let operation = pulse::pa_context_get_sink_info_list(
-            self.context,
+            context,
             Some(sink_info_cb),
             &mut physical_devices as *mut _ as _,
         );
-        self.await_operation(operation);
-        physical_devices
-    }
+        Self::await_operation(mainloop, operation);
 
-    pub unsafe fn enumerate_physical_input_devices(&self) -> Vec<PhysicalDevice> {
-        let mut physical_devices = Vec::new();
+        // output devices
         let operation = pulse::pa_context_get_source_info_list(
-            self.context,
+            context,
             Some(source_info_cb),
             &mut physical_devices as *mut _ as _,
         );
-        self.await_operation(operation);
-        physical_devices
+        Self::await_operation(mainloop, operation);
+
+        Instance {
+            mainloop,
+            context,
+            physical_devices,
+        }
     }
 
-    pub unsafe fn create_device(
+    unsafe fn enumerate_physical_devices(&self) -> Vec<api::PhysicalDevice> {
+        self.physical_devices
+            .values()
+            .map(|device| device.raw())
+            .collect()
+    }
+
+    unsafe fn default_physical_input_device(&self) -> Option<api::PhysicalDevice> {
+        self.physical_devices
+            .get("default")
+            .filter(|device| device.streams.contains(api::StreamFlags::INPUT))
+            .map(|device| device.raw())
+    }
+
+    unsafe fn default_physical_output_device(&self) -> Option<api::PhysicalDevice> {
+        self.physical_devices
+            .get("default")
+            .filter(|device| device.streams.contains(api::StreamFlags::OUTPUT))
+            .map(|device| device.raw())
+    }
+
+    unsafe fn get_physical_device_properties(
         &self,
-        physical_device: &PhysicalDevice,
-        sample_desc: SampleDesc,
-    ) -> Device {
+        physical_device: api::PhysicalDevice,
+    ) -> Result<api::PhysicalDeviceProperties> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+
+        Ok(api::PhysicalDeviceProperties {
+            device_name: physical_device.device_name.clone(),
+            driver_id: api::DriverId::PulseAudio,
+            sharing: api::SharingModeFlags::CONCURRENT,
+            streams: physical_device.streams,
+        })
+    }
+
+    unsafe fn create_device(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+        sample_desc: api::SampleDesc,
+    ) -> Self::Device {
         let spec = pulse::pa_sample_spec {
             format: map_format(sample_desc.format),
             channels: sample_desc.channels as _,
@@ -151,12 +201,34 @@ impl Instance {
             stream,
         }
     }
+
+    unsafe fn destroy_device(&self, device: &mut Self::Device) {
+        unimplemented!()
+    }
+}
+
+impl Instance {
+    unsafe fn await_operation(
+        mainloop: *mut pulse::pa_mainloop,
+        operation: *mut pulse::pa_operation,
+    ) {
+        loop {
+            let state = pulse::pa_operation_get_state(operation);
+            if state != pulse::PA_OPERATION_RUNNING {
+                pulse::pa_operation_unref(operation);
+                break;
+            }
+            pulse::pa_mainloop_iterate(mainloop, true as _, ptr::null_mut());
+        }
+    }
 }
 
 pub struct Device {
     pub mainloop: *mut pulse::pa_mainloop,
     pub stream: *mut pulse::pa_stream,
 }
+
+impl api::Device for Device {}
 
 impl Device {
     pub unsafe fn output_stream(&self) -> OutputStream {
@@ -197,7 +269,7 @@ impl Device {
         }
     }
 
-    pub unsafe fn properties(&self) -> DeviceProperties {
+    pub unsafe fn properties(&self) -> api::DeviceProperties {
         let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(self.stream);
         dbg!((
             buffer_attrs.minreq,
@@ -206,9 +278,9 @@ impl Device {
         ));
         let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
 
-        DeviceProperties {
+        api::DeviceProperties {
             num_channels: sample_spec.channels as _,
-            channel_mask: ChannelMask::empty(), // TODO
+            channel_mask: api::ChannelMask::empty(), // TODO
             sample_rate: sample_spec.rate as _,
             buffer_size: buffer_attrs.minreq as _,
         }
@@ -231,7 +303,7 @@ pub struct OutputStream {
 }
 
 impl OutputStream {
-    pub unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut u8, Frames) {
+    pub unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut u8, api::Frames) {
         let mut size = loop {
             let size = pulse::pa_stream_writable_size(self.stream);
             if size > 0 {
@@ -249,7 +321,7 @@ impl OutputStream {
         (data as _, (size / self.frame_size) as _)
     }
 
-    pub unsafe fn submit_buffer(&self, num_frames: usize) {
+    pub unsafe fn release_buffer(&self, num_frames: api::Frames) {
         pulse::pa_stream_write(
             self.stream,
             self.cur_buffer,
