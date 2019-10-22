@@ -31,23 +31,24 @@ fn main() -> Result<(), Box<dyn Error>> {
             );
         }
 
-        let output_device = instance.default_physical_output_device().unwrap();
+        let output_device = match instance.default_physical_output_device() {
+            Some(device) => device,
+            None => physical_devices
+                .into_iter()
+                .find(|device| {
+                    let properties = instance.physical_device_properties(*device);
+                    match properties {
+                        Ok(properties) => properties.streams.contains(audir::StreamFlags::OUTPUT),
+                        Err(_) => false,
+                    }
+                }).unwrap()
+        };
+
         println!(
             "{:X}: {:#?}",
             output_device,
             instance.physical_device_properties(output_device)?
         );
-
-        // let output_device = physical_devices
-        //     .into_iter()
-        //     .find(|device| {
-        //         let properties = instance.get_physical_device_properties(*device);
-        //         match properties {
-        //             Ok(properties) => properties.streams.contains(audir::StreamFlags::OUTPUT),
-        //             Err(_) => false,
-        //         }
-        //     })
-        //     .unwrap();
 
         let sharing = audir::SharingMode::Concurrent;
         let format = audir::SampleDesc {
@@ -55,13 +56,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             channels: 2,
             sample_rate: 48_000,
         };
-        instance.physical_device_supports_format(output_device, sharing, format);
+        // instance.physical_device_supports_format(output_device, sharing, format);
 
         let device = instance.create_poll_device(audir::DeviceDesc {
             physical_device: output_device, sharing,
         }, None, Some(format))?;
 
-        let properties = dbg!(device.properties());
+
+
+        let mut stream = device.get_output_stream()?;
+        let properties = dbg!(stream.properties());
 
         let frequency = 440.0;
         let sample_rate = properties.sample_rate as f32;
@@ -69,7 +73,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         let cycle_step = frequency / sample_rate;
         let mut cycle = 0.0;
 
-        let mut stream = device.get_output_stream()?;
         device.start();
 
         loop {

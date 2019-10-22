@@ -73,7 +73,7 @@ pub struct InstanceProperties {
 }
 
 #[derive(Debug, Clone)]
-pub struct DeviceProperties {
+pub struct StreamProperties {
     pub num_channels: usize,
     pub channel_mask: ChannelMask,
     pub sample_rate: usize,
