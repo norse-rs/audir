@@ -19,6 +19,7 @@ assets = "assets"
 bitflags = "1"
 
 [target.'cfg(windows)'.dependencies]
+com-impl = "0.1.1"
 winapi = { version = "0.3.8", features = ["debug", "ksmedia", "audioclient", "combaseapi", "coml2api", "devpkey", "handleapi", "mmdeviceapi", "objbase", "unknwnbase", "winerror", "synchapi"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]

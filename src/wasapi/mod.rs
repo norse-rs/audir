@@ -1,32 +1,116 @@
 #![allow(non_upper_case_globals)]
 
 pub mod com;
+mod fence;
+
+use self::fence::*;
 
 pub use winapi::shared::winerror::HRESULT;
 pub type WasapiResult<T> = (T, HRESULT);
 
-use com::WeakPtr;
+use com::{Guid, WeakPtr};
 use std::collections::HashMap;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{ffi::OsString, mem, os::windows::ffi::OsStringExt, ptr, slice};
 use winapi::shared::devpkey::*;
 use winapi::shared::ksmedia;
+use winapi::shared::minwindef::DWORD;
 use winapi::shared::mmreg::*;
+use winapi::shared::winerror;
+use winapi::shared::wtypes::PROPERTYKEY;
 use winapi::um::audioclient::*;
 use winapi::um::audiosessiontypes::*;
 use winapi::um::combaseapi::*;
 use winapi::um::coml2api::STGM_READ;
-use winapi::um::handleapi;
 use winapi::um::mmdeviceapi::*;
 use winapi::um::objbase::COINIT_MULTITHREADED;
 use winapi::um::propsys::*;
-use winapi::um::synchapi;
-use winapi::um::winnt;
+use winapi::um::winnt::*;
+
 use winapi::Interface;
 
 use crate::{
     api::{self, Result},
     handle::Handle,
 };
+
+#[derive(Debug)]
+enum Event {
+    Added(PhysicalDeviceId),
+    Removed(PhysicalDeviceId),
+    Changed {
+        device: PhysicalDeviceId,
+        state: u32,
+    },
+    Default {
+        device: PhysicalDeviceId,
+        flow: EDataFlow,
+    },
+}
+
+unsafe fn string_from_wstr(os_str: *const WCHAR) -> String {
+    let mut len = 0;
+    while *os_str.offset(len) != 0 {
+        len += 1;
+    }
+    let string: OsString = OsStringExt::from_wide(slice::from_raw_parts(os_str, len as _));
+    string.into_string().unwrap()
+}
+
+#[repr(C)]
+#[derive(com_impl::ComImpl)]
+#[interfaces(IMMNotificationClient)]
+pub struct NotificationClient {
+    vtbl: com_impl::VTable<IMMNotificationClientVtbl>,
+    refcount: com_impl::Refcount,
+    tx: Sender<Event>,
+}
+
+#[com_impl::com_impl]
+unsafe impl IMMNotificationClient for NotificationClient {
+    unsafe fn on_device_state_changed(&self, pwstrDeviceId: LPCWSTR, state: DWORD) -> HRESULT {
+        self.tx.send(Event::Changed {
+            device: string_from_wstr(pwstrDeviceId),
+            state,
+        });
+        winerror::S_OK
+    }
+
+    unsafe fn on_device_added(&self, pwstrDeviceId: LPCWSTR) -> HRESULT {
+        self.tx.send(Event::Added(string_from_wstr(pwstrDeviceId)));
+        winerror::S_OK
+    }
+
+    unsafe fn on_device_removed(&self, pwstrDeviceId: LPCWSTR) -> HRESULT {
+        self.tx
+            .send(Event::Removed(string_from_wstr(pwstrDeviceId)));
+        winerror::S_OK
+    }
+
+    unsafe fn on_default_device_changed(
+        &self,
+        flow: EDataFlow,
+        role: ERole,
+        pwstrDefaultDeviceId: LPCWSTR,
+    ) -> HRESULT {
+        if role == eConsole {
+            self.tx.send(Event::Default {
+                device: string_from_wstr(pwstrDefaultDeviceId),
+                flow,
+            });
+        }
+
+        winerror::S_OK
+    }
+
+    unsafe fn on_property_value_changed(
+        &self,
+        pwstrDeviceId: LPCWSTR,
+        key: PROPERTYKEY,
+    ) -> HRESULT {
+        winerror::S_OK
+    }
+}
 
 fn map_sample_desc(sample_desc: &api::SampleDesc) -> Option<WAVEFORMATEXTENSIBLE> {
     let (format_tag, sub_format, bytes_per_sample) = match sample_desc.format {
@@ -59,6 +143,30 @@ fn map_sample_desc(sample_desc: &api::SampleDesc) -> Option<WAVEFORMATEXTENSIBLE
     })
 }
 
+unsafe fn map_waveformat(format: *const WAVEFORMATEX) -> Result<api::SampleDesc> {
+    let wave_format = &*format;
+    match wave_format.wFormatTag {
+        WAVE_FORMAT_EXTENSIBLE => {
+            let wave_format_ex = &*(format as *const WAVEFORMATEXTENSIBLE);
+            let subformat = Guid(wave_format_ex.SubFormat);
+            let samples = wave_format_ex.Samples;
+            let format =
+                if subformat == Guid(ksmedia::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT) && samples == 32 {
+                    api::Format::F32
+                } else {
+                    return Err(api::Error::Validation); // TODO
+                };
+
+            Ok(api::SampleDesc {
+                format,
+                channels: wave_format.nChannels as _,
+                sample_rate: wave_format.nSamplesPerSec as _,
+            })
+        }
+        _ => Err(api::Error::Validation), // TODO
+    }
+}
+
 fn map_sharing_mode(sharing: api::SharingMode) -> AUDCLNT_SHAREMODE {
     match sharing {
         api::SharingMode::Exclusive => AUDCLNT_SHAREMODE_EXCLUSIVE,
@@ -70,18 +178,43 @@ type InstanceRaw = WeakPtr<IMMDeviceEnumerator>;
 type PhysicalDeviceRaw = WeakPtr<IMMDevice>;
 struct PhysicalDevice {
     device: PhysicalDeviceRaw,
+    state: u32,
     audio_client: WeakPtr<IAudioClient>,
     streams: api::StreamFlags,
 }
-type PhysialDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
+
+impl PhysicalDevice {
+    unsafe fn default_format(&self, sharing: api::SharingMode) -> Result<api::SampleDesc> {
+        match sharing {
+            api::SharingMode::Concurrent => {
+                let mut mix_format = ptr::null_mut();
+                self.audio_client.GetMixFormat(&mut mix_format);
+                map_waveformat(mix_format)
+            }
+            api::SharingMode::Exclusive => unimplemented!(),
+        }
+    }
+}
+
+type PhysicalDeviceId = String;
+type PhysialDeviceMap = HashMap<PhysicalDeviceId, Handle<PhysicalDevice>>;
 
 pub struct Instance {
     raw: InstanceRaw,
     physical_devices: PhysialDeviceMap,
+    notifier: WeakPtr<NotificationClient>,
+    event_rx: Receiver<Event>,
 }
 
 impl api::Instance for Instance {
     type Device = Device;
+
+    unsafe fn properties() -> api::InstanceProperties {
+        api::InstanceProperties {
+            driver_id: api::DriverId::Wasapi,
+            sharing: api::SharingModeFlags::CONCURRENT | api::SharingModeFlags::EXCLUSIVE,
+        }
+    }
 
     unsafe fn create(_: &str) -> Self {
         CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED);
@@ -95,6 +228,10 @@ impl api::Instance for Instance {
             instance.mut_void(),
         );
 
+        let (tx, event_rx) = channel();
+        let notification_client = NotificationClient::create_raw(tx);
+        dbg!(instance.RegisterEndpointNotificationCallback(notification_client as _));
+
         let mut physical_devices = HashMap::new();
         Self::enumerate_physical_devices_by_flow(&mut physical_devices, instance, eCapture);
         Self::enumerate_physical_devices_by_flow(&mut physical_devices, instance, eRender);
@@ -102,13 +239,21 @@ impl api::Instance for Instance {
         Instance {
             raw: instance,
             physical_devices,
+            notifier: WeakPtr::from_raw(notification_client),
+            event_rx,
         }
     }
 
     unsafe fn enumerate_physical_devices(&self) -> Vec<api::PhysicalDevice> {
         self.physical_devices
             .values()
-            .map(|device| device.raw())
+            .filter_map(|device| {
+                if device.state & DEVICE_STATE_ACTIVE != 0 {
+                    Some(device.raw())
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
@@ -137,7 +282,7 @@ impl api::Instance for Instance {
         }
     }
 
-    unsafe fn get_physical_device_properties(
+    unsafe fn physical_device_properties(
         &self,
         physical_device: api::PhysicalDevice,
     ) -> Result<api::PhysicalDeviceProperties> {
@@ -157,36 +302,48 @@ impl api::Instance for Instance {
                 &mut value,
             );
             let os_str = *value.data.pwszVal();
-            let mut len = 0;
-            while *os_str.offset(len) != 0 {
-                len += 1;
-            }
-            let name: OsString = OsStringExt::from_wide(slice::from_raw_parts(os_str, len as _));
-            name.into_string().unwrap()
+            string_from_wstr(os_str)
         };
 
         Ok(api::PhysicalDeviceProperties {
             device_name,
-            driver_id: api::DriverId::Wasapi,
-            sharing: api::SharingModeFlags::CONCURRENT | api::SharingModeFlags::EXCLUSIVE,
             streams: physical_device.streams,
         })
     }
 
-    unsafe fn create_device(
+    unsafe fn physical_device_default_input_format(
         &self,
         physical_device: api::PhysicalDevice,
         sharing: api::SharingMode,
+    ) -> Result<api::SampleDesc> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+        physical_device.default_format(sharing)
+    }
+
+    unsafe fn physical_device_default_output_format(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+    ) -> Result<api::SampleDesc> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+        physical_device.default_format(sharing)
+    }
+
+    unsafe fn create_poll_device(
+        &self,
+        desc: api::DeviceDesc,
         input_sample_desc: Option<api::SampleDesc>,
         output_sample_desc: Option<api::SampleDesc>,
-    ) -> Device {
-        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+    ) -> Result<Device> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
+        let sharing = map_sharing_mode(desc.sharing);
+
         let fence = Fence::create(false, false);
 
         if let Some(sample_desc) = input_sample_desc {
             let mix_format = map_sample_desc(&sample_desc).unwrap(); // todo
             dbg!(physical_device.audio_client.Initialize(
-                map_sharing_mode(sharing),
+                sharing,
                 AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
                 0,
                 0,
@@ -196,7 +353,7 @@ impl api::Instance for Instance {
         } else if let Some(sample_desc) = output_sample_desc {
             let mix_format = map_sample_desc(&sample_desc).unwrap(); // todo
             dbg!(physical_device.audio_client.Initialize(
-                map_sharing_mode(sharing),
+                sharing,
                 AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
                 0,
                 0,
@@ -207,15 +364,36 @@ impl api::Instance for Instance {
 
         physical_device.audio_client.SetEventHandle(fence.0);
 
-        Device {
+        Ok(Device {
             client: physical_device.audio_client,
             fence,
-        }
+        })
+    }
+
+    unsafe fn create_event_device<I, O>(
+        &self,
+        _: api::DeviceDesc,
+        _: Option<(api::SampleDesc, api::InputCallback)>,
+        _: Option<(api::SampleDesc, api::OutputCallback)>,
+    ) -> Result<Self::Device> {
+        Err(api::Error::Validation)
     }
 
     unsafe fn destroy_device(&self, device: &mut Device) {
         device.client.Release();
         device.fence.destory();
+    }
+
+    unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
+    where
+        F: FnMut(api::Event)
+    {
+        while let Ok(event) = self.event_rx.try_recv() {
+            // TODO
+            dbg!(event);
+        }
+
+        Ok(())
     }
 }
 
@@ -248,7 +426,10 @@ impl Instance {
             let mut collection = DeviceCollection::null();
             let _hr = instance.EnumAudioEndpoints(
                 ty,
-                DEVICE_STATE_ACTIVE,
+                DEVICE_STATE_ACTIVE
+                    | DEVICE_STATE_DISABLED
+                    | DEVICE_STATE_NOTPRESENT
+                    | DEVICE_STATE_UNPLUGGED,
                 collection.mut_void() as *mut _,
             );
             collection
@@ -264,6 +445,11 @@ impl Instance {
             let mut device = PhysicalDeviceRaw::null();
             collection.Item(i, device.mut_void() as *mut _);
             let id = Self::get_physical_device_id(device);
+            let state = {
+                let mut state = 0;
+                device.GetState(&mut state);
+                state
+            };
 
             physical_devices
                 .entry(id)
@@ -272,15 +458,19 @@ impl Instance {
                 })
                 .or_insert_with(|| {
                     let mut audio_client = WeakPtr::<IAudioClient>::null();
-                    device.Activate(
-                        &IAudioClient::uuidof(),
-                        CLSCTX_ALL,
-                        ptr::null_mut(),
-                        audio_client.mut_void() as *mut _,
-                    );
+
+                    if state & DEVICE_STATE_ACTIVE != 0 {
+                        device.Activate(
+                            &IAudioClient::uuidof(),
+                            CLSCTX_ALL,
+                            ptr::null_mut(),
+                            audio_client.mut_void() as *mut _,
+                        );
+                    }
 
                     Handle::new(PhysicalDevice {
                         device,
+                        state,
                         audio_client,
                         streams: stream_flags,
                     })
@@ -314,6 +504,8 @@ impl std::ops::Drop for Instance {
     fn drop(&mut self) {
         unsafe {
             self.raw.Release();
+            WeakPtr::from_raw(self.notifier.as_mut_ptr() as *mut IMMNotificationClient).Release();
+            // TODO: drop audio clients
         }
     }
 }
@@ -453,10 +645,8 @@ pub struct OutputStream {
     fence: Fence,
 }
 
-impl api::OutputStream for OutputStream {}
-
-impl OutputStream {
-    pub unsafe fn acquire_buffer(&self, timeout_ms: u32) -> (*mut u8, api::Frames) {
+impl api::OutputStream for OutputStream {
+    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut (), api::Frames) {
         self.fence.wait(timeout_ms);
 
         let mut data = ptr::null_mut();
@@ -466,31 +656,10 @@ impl OutputStream {
 
         let len = self.buffer_size - padding;
         self.client.GetBuffer(len, &mut data);
-        (data, len as _)
+        (data as _, len as _)
     }
 
-    pub unsafe fn release_buffer(&self, num_frames: api::Frames) {
+    unsafe fn release_buffer(&mut self, num_frames: api::Frames) {
         self.client.ReleaseBuffer(num_frames as _, 0);
-    }
-}
-
-#[derive(Copy, Clone)]
-struct Fence(pub winnt::HANDLE);
-impl Fence {
-    unsafe fn create(manual_reset: bool, initial_state: bool) -> Self {
-        Fence(synchapi::CreateEventA(
-            ptr::null_mut(),
-            manual_reset as _,
-            initial_state as _,
-            ptr::null(),
-        ))
-    }
-
-    unsafe fn destory(self) {
-        handleapi::CloseHandle(self.0);
-    }
-
-    unsafe fn wait(&self, timeout_ms: u32) -> u32 {
-        synchapi::WaitForSingleObject(self.0, timeout_ms)
     }
 }

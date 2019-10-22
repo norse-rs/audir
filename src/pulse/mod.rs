@@ -7,20 +7,28 @@ use std::ptr;
 
 pub struct PhysicalDevice {
     device_name: String,
+    dev: *const i8,
     streams: api::StreamFlags,
+    sample_spec: pulse::pa_sample_spec,
 }
 
 type PhysialDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
 
-// impl PhysicalDevice {
-//     pub unsafe fn properties(&self) -> api::PhysicalDeviceProperties {
-//         api::PhysicalDeviceProperties {
-//             device_name: self.name.clone(),
-//             driver_id: api::DriverId::PulseAudio,
-//             sharing: api::SharingModeFlags::CONCURRENT,
-//         }
-//     }
-// }
+impl PhysicalDevice {
+    fn default_format(&self) -> Result<api::SampleDesc> {
+        let format = match self.sample_spec.format {
+            pulse::pa_sample_format_t::F32le => api::Format::F32,
+            pulse::pa_sample_format_t::S16le => api::Format::I16,
+            format => return Err(api::Error::Internal { cause: format!("unhandled format: {:?}", format)}),
+        };
+
+        Ok(api::SampleDesc {
+            format,
+            channels: self.sample_spec.channels as _,
+            sample_rate: self.sample_spec.rate as _,
+        })
+    }
+}
 
 extern "C" fn sink_info_cb(
     context: *mut pulse::pa_context,
@@ -36,20 +44,28 @@ extern "C" fn sink_info_cb(
     let physical_devices = unsafe { &mut *(user as *mut PhysialDeviceMap) };
 
     let name = unsafe {
+        CStr::from_ptr(info.name)
+            .to_string_lossy()
+            .into_owned()
+    };
+    let device_name = unsafe {
         CStr::from_ptr(info.description)
             .to_string_lossy()
             .into_owned()
     };
-    let device_name = name.clone(); // TODO:
     physical_devices
         .entry(name)
         .and_modify(|device| {
+            assert_eq!(device.sample_spec, info.sample_spec); // TODO: is this right?
+
             device.streams |= api::StreamFlags::OUTPUT;
         })
         .or_insert_with(|| {
             Handle::new(PhysicalDevice {
                 device_name,
+                dev: info.name,
                 streams: api::StreamFlags::OUTPUT,
+                sample_spec: info.sample_spec,
             })
         });
 }
@@ -72,16 +88,24 @@ extern "C" fn source_info_cb(
             .to_string_lossy()
             .into_owned()
     };
-    let device_name = name.clone(); // TODO:
+    let device_name = unsafe {
+        CStr::from_ptr(info.description)
+            .to_string_lossy()
+            .into_owned()
+    };
     physical_devices
         .entry(name)
         .and_modify(|device| {
+            assert_eq!(device.sample_spec, info.sample_spec); // TODO: is this right?
+
             device.streams |= api::StreamFlags::INPUT;
         })
         .or_insert_with(|| {
             Handle::new(PhysicalDevice {
                 device_name,
+                dev: info.name,
                 streams: api::StreamFlags::INPUT,
+                sample_spec: info.sample_spec,
             })
         });
 }
@@ -164,7 +188,7 @@ impl api::Instance for Instance {
             .map(|device| device.raw())
     }
 
-    unsafe fn get_physical_device_properties(
+    unsafe fn physical_device_properties(
         &self,
         physical_device: api::PhysicalDevice,
     ) -> Result<api::PhysicalDeviceProperties> {
@@ -178,28 +202,99 @@ impl api::Instance for Instance {
         })
     }
 
-    unsafe fn create_device(
+    unsafe fn physical_device_default_input_format(
         &self,
         physical_device: api::PhysicalDevice,
         sharing: api::SharingMode,
-        sample_desc: api::SampleDesc,
-    ) -> Self::Device {
-        let spec = pulse::pa_sample_spec {
-            format: map_format(sample_desc.format),
-            channels: sample_desc.channels as _,
-            rate: sample_desc.sample_rate as _,
-        };
-        let stream = dbg!(pulse::pa_stream_new(
-            self.context,
-            b"audir\0".as_ptr() as _,
-            &spec,
-            ptr::null()
-        )); // TODO: name, channel map
+    ) -> Result<api::SampleDesc> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+        physical_device.default_format()
+    }
 
-        Device {
+    unsafe fn physical_device_default_output_format(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+    ) -> Result<api::SampleDesc> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+        physical_device.default_format()
+    }
+
+    unsafe fn create_poll_device(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+        input_sample_desc: Option<api::SampleDesc>,
+        output_sample_desc: Option<api::SampleDesc>,
+    ) -> Result<Self::Device> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+
+        let input_stream = ptr::null_mut(); // TODO
+        let output_stream = match output_sample_desc {
+            Some(sample_desc) => {
+                let spec = pulse::pa_sample_spec {
+                    format: map_format(sample_desc.format),
+                    channels: sample_desc.channels as _,
+                    rate: sample_desc.sample_rate as _,
+                };
+
+                let stream = dbg!(pulse::pa_stream_new(
+                    self.context,
+                    b"audir\0".as_ptr() as _,
+                    &spec,
+                    ptr::null()
+                )); // TODO: name, channel map
+
+                // TODO
+                let attribs = pulse::pa_buffer_attr {
+                    maxlength: !0,
+                    tlength: !0,
+                    prebuf: !0,
+                    minreq: !0,
+                    fragsize: !0,
+                };
+
+                dbg!(pulse::pa_stream_connect_playback(
+                    stream,
+                    physical_device.dev,
+                    &attribs,
+                    0,
+                    ptr::null(),
+                    ptr::null_mut(),
+                ));
+
+                loop {
+                    let state = dbg!(pulse::pa_stream_get_state(stream));
+                    if state == pulse::PA_STREAM_READY {
+                        break;
+                    }
+                    pulse::pa_mainloop_iterate(self.mainloop, true as _, ptr::null_mut());
+                }
+
+                stream
+            }
+            None => ptr::null_mut(),
+        };
+
+        Ok(Device {
             mainloop: self.mainloop,
-            stream,
-        }
+            input_stream,
+            output_stream,
+        })
+    }
+
+    unsafe fn create_event_device<I, O>(
+        &self,
+        _: api::PhysicalDevice,
+        _: api::SharingMode,
+        _: Option<(api::SampleDesc, I)>,
+        _: Option<(api::SampleDesc, O)>,
+    ) -> Result<Self::Device>
+    where
+        I: FnMut(*mut (), api::Frames) + Send,
+        O: FnMut(*const (), api::Frames) + Send
+    {
+        Err(api::Error::Validation)
     }
 
     unsafe fn destroy_device(&self, device: &mut Self::Device) {
@@ -225,72 +320,61 @@ impl Instance {
 
 pub struct Device {
     pub mainloop: *mut pulse::pa_mainloop,
-    pub stream: *mut pulse::pa_stream,
+    pub input_stream: *mut pulse::pa_stream,
+    pub output_stream: *mut pulse::pa_stream,
 }
 
-impl api::Device for Device {}
+impl api::Device for Device {
+    type OutputStream = OutputStream;
+    type InputStream = InputStream;
 
-impl Device {
-    pub unsafe fn output_stream(&self) -> OutputStream {
-        // TODO
-        let attribs = pulse::pa_buffer_attr {
-            maxlength: !0,
-            tlength: !0,
-            prebuf: !0,
-            minreq: !0,
-            fragsize: !0,
-        };
-
-        dbg!(pulse::pa_stream_connect_playback(
-            self.stream,
-            ptr::null(),
-            &attribs,
-            0,
-            ptr::null(),
-            ptr::null_mut(),
-        ));
-        loop {
-            let state = dbg!(pulse::pa_stream_get_state(self.stream));
-            if state == pulse::PA_STREAM_READY {
-                break;
-            }
-            pulse::pa_mainloop_iterate(self.mainloop, true as _, ptr::null_mut());
+    unsafe fn get_output_stream(&self) -> Result<OutputStream> {
+        let stream = self.output_stream;
+        if stream.is_null() {
+            return Err(api::Error::Validation);
         }
 
-        let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
-        let sample_size = pulse::pa_sample_size(sample_spec);
-        let frame_size = sample_size * sample_spec.channels as usize;
+        let sample_spec = &*pulse::pa_stream_get_sample_spec(stream);
+        let frame_size = pulse::pa_frame_size(sample_spec);
 
-        OutputStream {
+        Ok(OutputStream {
             mainloop: self.mainloop,
-            stream: self.stream,
+            stream,
             cur_buffer: ptr::null_mut(),
             frame_size,
-        }
+        })
     }
 
-    pub unsafe fn properties(&self) -> api::DeviceProperties {
-        let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(self.stream);
-        dbg!((
-            buffer_attrs.minreq,
-            buffer_attrs.maxlength,
-            buffer_attrs.tlength
-        ));
-        let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
-
-        api::DeviceProperties {
-            num_channels: sample_spec.channels as _,
-            channel_mask: api::ChannelMask::empty(), // TODO
-            sample_rate: sample_spec.rate as _,
-            buffer_size: buffer_attrs.minreq as _,
+    unsafe fn get_input_stream(&self) -> Result<InputStream> {
+        if self.input_stream.is_null() {
+            return Err(api::Error::Validation);
         }
+
+        Ok(InputStream { })
     }
 
-    pub unsafe fn start(&self) {
+    // unsafe fn properties(&self) -> api::DeviceProperties {
+    //     let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(self.stream);
+    //     dbg!((
+    //         buffer_attrs.minreq,
+    //         buffer_attrs.maxlength,
+    //         buffer_attrs.tlength
+    //     ));
+    //     let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
+
+    //     api::DeviceProperties {
+    //         num_channels: sample_spec.channels as _,
+    //         channel_mask: api::ChannelMask::empty(), // TODO
+    //         sample_rate: sample_spec.rate as _,
+    //         buffer_size: buffer_attrs.minreq as _,
+    //     }
+    // }
+
+    unsafe fn start(&self) {
         println!("Device::start unimplemented");
     }
 
-    pub unsafe fn stop(&self) {
+    unsafe fn stop(&self) {
         println!("Device::stop unimplemented");
     }
 }
@@ -302,8 +386,8 @@ pub struct OutputStream {
     frame_size: usize,
 }
 
-impl OutputStream {
-    pub unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut u8, api::Frames) {
+impl api::OutputStream for OutputStream {
+    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut (), api::Frames) {
         let mut size = loop {
             let size = pulse::pa_stream_writable_size(self.stream);
             if size > 0 {
@@ -321,7 +405,7 @@ impl OutputStream {
         (data as _, (size / self.frame_size) as _)
     }
 
-    pub unsafe fn release_buffer(&self, num_frames: api::Frames) {
+    unsafe fn release_buffer(&mut self, num_frames: api::Frames) {
         pulse::pa_stream_write(
             self.stream,
             self.cur_buffer,
@@ -331,4 +415,13 @@ impl OutputStream {
             pulse::PA_SEEK_RELATIVE,
         );
     }
+}
+
+// TODO
+pub struct InputStream {
+
+}
+
+impl api::InputStream for InputStream {
+
 }

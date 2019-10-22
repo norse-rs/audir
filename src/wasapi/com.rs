@@ -4,6 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::ptr;
 use winapi::ctypes::c_void;
+use winapi::shared::guiddef;
 use winapi::um::unknwnbase::IUnknown;
 use winapi::Interface;
 
@@ -102,3 +103,14 @@ impl<T> Hash for WeakPtr<T> {
         self.0.hash(state);
     }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct Guid(pub guiddef::GUID);
+
+impl PartialEq for Guid {
+    fn eq(&self, other: &Self) -> bool {
+        guiddef::IsEqualGUID(&self.0, &other.0)
+    }
+}
+
+impl Eq for Guid {}

@@ -11,20 +11,30 @@ fn main() -> Result<(), Box<dyn Error>> {
         let physical_devices = instance.enumerate_physical_devices();
 
         for device in &physical_devices {
-            println!("{:#?}", instance.get_physical_device_properties(*device)?);
+            println!("{:#?}", instance.physical_device_properties(*device)?);
+            println!(
+                " - Input Format: {:#?}",
+                instance
+                    .physical_device_default_input_format(*device, audir::SharingMode::Concurrent)
+            );
+            println!(
+                " - Ouput Format: {:#?}",
+                instance
+                    .physical_device_default_output_format(*device, audir::SharingMode::Concurrent)
+            );
         }
 
         if let Some(output_device) = instance.default_physical_output_device() {
             println!(
                 "default output: {:#?}",
-                instance.get_physical_device_properties(output_device)?
+                instance.physical_device_properties(output_device)?
             );
         }
 
         if let Some(input_device) = instance.default_physical_input_device() {
             println!(
                 "default input: {:#?}",
-                instance.get_physical_device_properties(input_device)?
+                instance.physical_device_properties(input_device)?
             );
         }
     }
