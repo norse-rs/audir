@@ -19,7 +19,11 @@ impl PhysicalDevice {
         let format = match self.sample_spec.format {
             pulse::pa_sample_format_t::F32le => api::Format::F32,
             pulse::pa_sample_format_t::S16le => api::Format::I16,
-            format => return Err(api::Error::Internal { cause: format!("unhandled format: {:?}", format)}),
+            format => {
+                return Err(api::Error::Internal {
+                    cause: format!("unhandled format: {:?}", format),
+                })
+            }
         };
 
         Ok(api::SampleDesc {
@@ -43,11 +47,7 @@ extern "C" fn sink_info_cb(
     let info = unsafe { &*info };
     let physical_devices = unsafe { &mut *(user as *mut PhysialDeviceMap) };
 
-    let name = unsafe {
-        CStr::from_ptr(info.name)
-            .to_string_lossy()
-            .into_owned()
-    };
+    let name = unsafe { CStr::from_ptr(info.name).to_string_lossy().into_owned() };
     let device_name = unsafe {
         CStr::from_ptr(info.description)
             .to_string_lossy()
@@ -292,8 +292,7 @@ impl api::Instance for Instance {
         _: api::DeviceDesc,
         _: Option<(api::SampleDesc, api::InputCallback)>,
         _: Option<(api::SampleDesc, api::OutputCallback)>,
-    ) -> Result<Self::Device>
-    {
+    ) -> Result<Self::Device> {
         Err(api::Error::Validation)
     }
 
@@ -303,7 +302,7 @@ impl api::Instance for Instance {
 
     unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
     where
-        F: FnMut(api::Event)
+        F: FnMut(api::Event),
     {
         unimplemented!()
     }
@@ -376,7 +375,7 @@ impl api::Device for Device {
             return Err(api::Error::Validation);
         }
 
-        Ok(InputStream { })
+        Ok(InputStream {})
     }
 
     unsafe fn start(&self) {
@@ -427,10 +426,6 @@ impl api::OutputStream for OutputStream {
 }
 
 // TODO
-pub struct InputStream {
+pub struct InputStream {}
 
-}
-
-impl api::InputStream for InputStream {
-
-}
+impl api::InputStream for InputStream {}

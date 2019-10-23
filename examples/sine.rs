@@ -41,7 +41,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                         Ok(properties) => properties.streams.contains(audir::StreamFlags::OUTPUT),
                         Err(_) => false,
                     }
-                }).unwrap()
+                })
+                .unwrap(),
         };
 
         println!(
@@ -58,14 +59,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
         // instance.physical_device_supports_format(output_device, sharing, format);
 
-        let device = instance.create_poll_device(audir::DeviceDesc {
-            physical_device: output_device, sharing,
-        }, None, Some(format))?;
-
-
+        let device = instance.create_poll_device(
+            audir::DeviceDesc {
+                physical_device: output_device,
+                sharing,
+            },
+            None,
+            Some(format),
+        )?;
 
         let mut stream = device.get_output_stream()?;
-        let properties = dbg!(stream.properties());
+        let properties = stream.properties();
 
         let frequency = 440.0;
         let sample_rate = properties.sample_rate as f32;

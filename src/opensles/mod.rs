@@ -154,7 +154,8 @@ impl api::Instance for Instance {
                         sampleRate: (sample_desc.sample_rate * 1000) as _,
                         bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                         containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
-                        channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT) as _, // TODO
+                        channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT)
+                            as _, // TODO
                         endianness: sles::SL_BYTEORDER_LITTLEENDIAN as _, // TODO
                         representation: sles::SL_ANDROID_PCM_REPRESENTATION_FLOAT as _,
                     };
@@ -168,7 +169,8 @@ impl api::Instance for Instance {
                         samplesPerSec: (sample_desc.sample_rate * 1000) as _,
                         bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                         containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
-                        channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT) as _, // TODO
+                        channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT)
+                            as _, // TODO
                         endianness: sles::SL_BYTEORDER_LITTLEENDIAN as _, // TODO
                     };
 
@@ -248,7 +250,7 @@ impl api::Instance for Instance {
 
     unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
     where
-        F: FnMut(api::Event)
+        F: FnMut(api::Event),
     {
         Ok(())
     }
@@ -328,4 +330,4 @@ impl api::OutputStream for OutputStream {
 
 pub struct InputStream {}
 
-impl api::InputStream for InputStream { }
+impl api::InputStream for InputStream {}

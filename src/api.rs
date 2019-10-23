@@ -167,6 +167,10 @@ pub trait Instance {
         F: FnMut(Event);
 }
 
+pub trait Stream {
+    unsafe fn properties(&self) -> StreamProperties;
+}
+
 pub trait Device {
     type OutputStream: OutputStream;
     type InputStream: InputStream;
@@ -178,9 +182,9 @@ pub trait Device {
     unsafe fn stop(&self);
 }
 
-pub trait OutputStream {
+pub trait OutputStream: Stream {
     unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut (), Frames);
     unsafe fn release_buffer(&mut self, num_frames: Frames);
 }
 
-pub trait InputStream {}
+pub trait InputStream: Stream {}

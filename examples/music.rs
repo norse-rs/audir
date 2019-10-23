@@ -1,6 +1,7 @@
 use std::env;
-
 use std::path::Path;
+
+use audir::{Instance, Device, OutputStream, Stream};
 
 #[cfg(target_os = "android")]
 pub fn load<P: AsRef<Path>>(path: P) -> Vec<u8> {
@@ -23,8 +24,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    log::warn!("start");
-
     #[cfg(not(target_os = "android"))]
     let mut audio_stream = {
         let file_path = env::args()
@@ -43,7 +42,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .frames::<[f32; 2]>()
         .map(Result::unwrap)
         .collect::<Vec<_>>();
-    log::warn!("samples: {}", samples.len());
 
     unsafe {
         #[cfg(windows)]
@@ -53,23 +51,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(target_os = "android")]
         let instance = audir::opensles::Instance::create("audir - music");
 
-        let output_devices = instance.enumerate_physical_output_devices();
-        let device = instance.create_device(
-            &output_devices[0],
-            audir::SampleDesc {
-                format: audir::Format::F32,
-                channels: 2,
-                sample_rate: 48_000,
-            },
-        );
+        let output_device = match instance.default_physical_output_device() {
+            Some(device) => device,
+            None => instance.enumerate_physical_devices()
+                .into_iter()
+                .find(|device| {
+                    let properties = instance.physical_device_properties(*device);
+                    match properties {
+                        Ok(properties) => properties.streams.contains(audir::StreamFlags::OUTPUT),
+                        Err(_) => false,
+                    }
+                })
+                .unwrap(),
+        };
 
-        let properties = dbg!(device.properties());
+        let sharing = audir::SharingMode::Concurrent;
+        let format = audir::SampleDesc {
+            format: audir::Format::F32,
+            channels: 2,
+            sample_rate: 48_000,
+        };
+
+        let device = instance.create_poll_device(
+            audir::DeviceDesc {
+                physical_device: output_device,
+                sharing,
+            },
+            None,
+            Some(format),
+        )?;
+
+        let mut stream = device.get_output_stream()?;
+        let properties = stream.properties();
 
         let sample_rate = properties.sample_rate;
         let num_channels = properties.num_channels;
 
-        let mut stream = device.output_stream();
-        stream.start();
+        device.start();
 
         let mut sample = 0;
         loop {
@@ -86,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 sample = (sample + 1) % samples.len();
             }
 
-            stream.submit_buffer(num_frames);
+            stream.release_buffer(num_frames);
         }
     }
 

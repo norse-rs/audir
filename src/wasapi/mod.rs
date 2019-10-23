@@ -386,7 +386,7 @@ impl api::Instance for Instance {
 
     unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
     where
-        F: FnMut(api::Event)
+        F: FnMut(api::Event),
     {
         while let Ok(event) = self.event_rx.try_recv() {
             // TODO
@@ -561,48 +561,15 @@ impl api::Device for Device {
     }
 }
 
-impl Device {
-    pub unsafe fn properties(&self) -> api::DeviceProperties {
-        let buffer_size = {
-            let mut size = 0;
-            self.client.GetBufferSize(&mut size);
-            size as _
-        };
-
-        let mut mix_format = ptr::null_mut();
-        self.client.GetMixFormat(&mut mix_format);
-
-        match (*mix_format).wFormatTag {
-            WAVE_FORMAT_EXTENSIBLE => {
-                let format = &*(mix_format as *const WAVEFORMATEXTENSIBLE);
-
-                let mut channel_mask = api::ChannelMask::empty();
-                if format.dwChannelMask & SPEAKER_FRONT_LEFT != 0 {
-                    channel_mask |= api::ChannelMask::FRONT_LEFT;
-                }
-                if format.dwChannelMask & SPEAKER_FRONT_RIGHT != 0 {
-                    channel_mask |= api::ChannelMask::FRONT_RIGHT;
-                }
-                if format.dwChannelMask & SPEAKER_FRONT_CENTER != 0 {
-                    channel_mask |= api::ChannelMask::FRONT_CENTER;
-                }
-                // TODO: more channels
-
-                api::DeviceProperties {
-                    num_channels: format.Format.nChannels as _,
-                    channel_mask,
-                    sample_rate: format.Format.nSamplesPerSec as _,
-                    buffer_size,
-                }
-            }
-            _ => unimplemented!(),
-        }
-    }
-}
-
 pub struct InputStream {
     client: WeakPtr<IAudioCaptureClient>,
     fence: Fence,
+}
+
+impl api::Stream for InputStream {
+    unsafe fn properties(&self) -> api::StreamProperties {
+        unimplemented!()
+    }
 }
 
 impl api::InputStream for InputStream {}
@@ -643,6 +610,45 @@ pub struct OutputStream {
     client: WeakPtr<IAudioRenderClient>,
     buffer_size: u32,
     fence: Fence,
+}
+
+impl api::Stream for OutputStream {
+    unsafe fn properties(&self) -> api::StreamProperties {
+        let buffer_size = {
+            let mut size = 0;
+            self.device.GetBufferSize(&mut size);
+            size as _
+        };
+
+        let mut mix_format = ptr::null_mut();
+        self.device.GetMixFormat(&mut mix_format);
+
+        match (*mix_format).wFormatTag {
+            WAVE_FORMAT_EXTENSIBLE => {
+                let format = &*(mix_format as *const WAVEFORMATEXTENSIBLE);
+
+                let mut channel_mask = api::ChannelMask::empty();
+                if format.dwChannelMask & SPEAKER_FRONT_LEFT != 0 {
+                    channel_mask |= api::ChannelMask::FRONT_LEFT;
+                }
+                if format.dwChannelMask & SPEAKER_FRONT_RIGHT != 0 {
+                    channel_mask |= api::ChannelMask::FRONT_RIGHT;
+                }
+                if format.dwChannelMask & SPEAKER_FRONT_CENTER != 0 {
+                    channel_mask |= api::ChannelMask::FRONT_CENTER;
+                }
+                // TODO: more channels
+
+                api::StreamProperties {
+                    num_channels: format.Format.nChannels as _,
+                    channel_mask,
+                    sample_rate: format.Format.nSamplesPerSec as _,
+                    buffer_size,
+                }
+            }
+            _ => unimplemented!(),
+        }
+    }
 }
 
 impl api::OutputStream for OutputStream {
