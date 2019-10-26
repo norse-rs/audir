@@ -1,0 +1,18 @@
+[package]
+name = "audir-music"
+version = "0.1.0"
+authors = ["msiglreith <m.siglreith@gmail.com>"]
+edition = "2018"
+workspace = "../.."
+
+[dependencies]
+audir = { path = "../../" }
+audrey = "0.2"
+
+[package.metadata.android]
+assets = "assets"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.8"
+log = "0.4"
+android_glue = "0.2"

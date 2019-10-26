@@ -1,7 +1,14 @@
-use std::env;
-use std::path::Path;
+#[cfg(target_os = "android")]
+use audir::opensles::Instance;
+#[cfg(target_os = "linux")]
+use audir::pulse::Instance;
+#[cfg(windows)]
+use audir::wasapi::Instance;
 
-use audir::{Instance, Device, OutputStream, Stream};
+use audir::{Device, Instance as InstanceTrait, OutputStream, Stream};
+
+#[cfg(target_os = "android")]
+use std::path::Path;
 
 #[cfg(target_os = "android")]
 pub fn load<P: AsRef<Path>>(path: P) -> Vec<u8> {
@@ -20,13 +27,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         android_logger::init_once(
             android_logger::Config::default()
                 .with_min_level(log::Level::Trace) // limit log level
-                .with_tag("audir"), // logs will show under mytag tag
+                .with_tag("audir-music"), // logs will show under mytag tag
         );
     }
 
     #[cfg(not(target_os = "android"))]
     let mut audio_stream = {
-        let file_path = env::args()
+        let file_path = std::env::args()
             .nth(1)
             .expect("No arg found. Please specify a file to open.");
         audrey::open(file_path)?
@@ -44,16 +51,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Vec<_>>();
 
     unsafe {
-        #[cfg(windows)]
-        let instance = audir::wasapi::Instance::create("audir - music");
-        #[cfg(target_os = "linux")]
-        let instance = audir::pulse::Instance::create("audir - music");
-        #[cfg(target_os = "android")]
-        let instance = audir::opensles::Instance::create("audir - music");
+        let instance_properties = Instance::properties();
+        let instance = Instance::create("audir-music");
 
         let output_device = match instance.default_physical_output_device() {
             Some(device) => device,
-            None => instance.enumerate_physical_devices()
+            None => instance
+                .enumerate_physical_devices()
                 .into_iter()
                 .find(|device| {
                     let properties = instance.physical_device_properties(*device);
@@ -72,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             sample_rate: 48_000,
         };
 
-        let device = instance.create_poll_device(
+        let device = instance.create_device(
             audir::DeviceDesc {
                 physical_device: output_device,
                 sharing,
@@ -82,16 +86,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
 
         let mut stream = device.get_output_stream()?;
-        let properties = stream.properties();
 
-        let sample_rate = properties.sample_rate;
+        let properties = stream.properties();
         let num_channels = properties.num_channels;
 
-        device.start();
-
         let mut sample = 0;
-        loop {
-            let (raw_buffer, num_frames) = stream.acquire_buffer(!0);
+        let mut callback = move |raw_buffer, num_frames| {
             let buffer = std::slice::from_raw_parts_mut(
                 raw_buffer as *mut f32,
                 num_frames as usize * num_channels,
@@ -103,8 +103,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 buffer[num_channels * dt as usize + 1] = frame[1];
                 sample = (sample + 1) % samples.len();
             }
+        };
 
-            stream.release_buffer(num_frames);
+        match instance_properties.stream_mode {
+            audir::StreamMode::Callback => {
+                stream.set_callback(Box::new(callback))?;
+                device.start();
+                loop {}
+            }
+            audir::StreamMode::Polling => {
+                device.start();
+                loop {
+                    let (raw_buffer, num_frames) = stream.acquire_buffer(!0)?;
+                    callback(raw_buffer, num_frames);
+                    stream.release_buffer(num_frames)?;
+                }
+            }
         }
     }
 

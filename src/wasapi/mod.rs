@@ -212,6 +212,7 @@ impl api::Instance for Instance {
     unsafe fn properties() -> api::InstanceProperties {
         api::InstanceProperties {
             driver_id: api::DriverId::Wasapi,
+            stream_mode: api::StreamMode::Polling,
             sharing: api::SharingModeFlags::CONCURRENT | api::SharingModeFlags::EXCLUSIVE,
         }
     }
@@ -329,7 +330,7 @@ impl api::Instance for Instance {
         physical_device.default_format(sharing)
     }
 
-    unsafe fn create_poll_device(
+    unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
         input_sample_desc: Option<api::SampleDesc>,
@@ -368,15 +369,6 @@ impl api::Instance for Instance {
             client: physical_device.audio_client,
             fence,
         })
-    }
-
-    unsafe fn create_event_device<I, O>(
-        &self,
-        _: api::DeviceDesc,
-        _: Option<(api::SampleDesc, api::InputCallback)>,
-        _: Option<(api::SampleDesc, api::OutputCallback)>,
-    ) -> Result<Self::Device> {
-        Err(api::Error::Validation)
     }
 
     unsafe fn destroy_device(&self, device: &mut Device) {
@@ -652,7 +644,11 @@ impl api::Stream for OutputStream {
 }
 
 impl api::OutputStream for OutputStream {
-    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut (), api::Frames) {
+    unsafe fn set_callback(&mut self, _: api::OutputCallback) -> Result<()> {
+        Err(api::Error::Validation)
+    }
+
+    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> Result<(*mut (), api::Frames)> {
         self.fence.wait(timeout_ms);
 
         let mut data = ptr::null_mut();
@@ -662,10 +658,11 @@ impl api::OutputStream for OutputStream {
 
         let len = self.buffer_size - padding;
         self.client.GetBuffer(len, &mut data);
-        (data as _, len as _)
+        Ok((data as _, len as _))
     }
 
-    unsafe fn release_buffer(&mut self, num_frames: api::Frames) {
+    unsafe fn release_buffer(&mut self, num_frames: api::Frames) -> Result<()> {
         self.client.ReleaseBuffer(num_frames as _, 0);
+        Ok(())
     }
 }

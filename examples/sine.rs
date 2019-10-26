@@ -1,16 +1,7 @@
-use audir::{Device, Instance, OutputStream};
+use audir::{Device, Instance, OutputStream, Stream};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(target_os = "android")]
-    {
-        android_logger::init_once(
-            android_logger::Config::default()
-                .with_min_level(log::Level::Trace) // limit log level
-                .with_tag("audir"), // logs will show under mytag tag
-        );
-    }
-
     unsafe {
         #[cfg(all(windows, not(feature = "asio")))]
         let instance = audir::wasapi::Instance::create("audir - sine");
@@ -57,7 +48,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             channels: 2,
             sample_rate: 48_000,
         };
-        // instance.physical_device_supports_format(output_device, sharing, format);
 
         let device = instance.create_poll_device(
             audir::DeviceDesc {

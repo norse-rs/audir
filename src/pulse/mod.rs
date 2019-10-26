@@ -130,6 +130,7 @@ impl api::Instance for Instance {
     unsafe fn properties() -> api::InstanceProperties {
         api::InstanceProperties {
             driver_id: api::DriverId::PulseAudio,
+            stream_mode: api::StreamMode::Polling,
             sharing: api::SharingModeFlags::CONCURRENT,
         }
     }
@@ -225,7 +226,7 @@ impl api::Instance for Instance {
         physical_device.default_format()
     }
 
-    unsafe fn create_poll_device(
+    unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
         input_sample_desc: Option<api::SampleDesc>,
@@ -287,15 +288,6 @@ impl api::Instance for Instance {
         })
     }
 
-    unsafe fn create_event_device<I, O>(
-        &self,
-        _: api::DeviceDesc,
-        _: Option<(api::SampleDesc, api::InputCallback)>,
-        _: Option<(api::SampleDesc, api::OutputCallback)>,
-    ) -> Result<Self::Device> {
-        Err(api::Error::Validation)
-    }
-
     unsafe fn destroy_device(&self, device: &mut Self::Device) {
         unimplemented!()
     }
@@ -328,25 +320,6 @@ pub struct Device {
     pub mainloop: *mut pulse::pa_mainloop,
     pub input_stream: *mut pulse::pa_stream,
     pub output_stream: *mut pulse::pa_stream,
-}
-
-impl OutputStream {
-    pub unsafe fn properties(&self) -> api::StreamProperties {
-        let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(self.stream);
-        dbg!((
-            buffer_attrs.minreq,
-            buffer_attrs.maxlength,
-            buffer_attrs.tlength
-        ));
-        let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
-
-        api::StreamProperties {
-            num_channels: sample_spec.channels as _,
-            channel_mask: api::ChannelMask::empty(), // TODO
-            sample_rate: sample_spec.rate as _,
-            buffer_size: buffer_attrs.minreq as _,
-        }
-    }
 }
 
 impl api::Device for Device {
@@ -394,8 +367,31 @@ pub struct OutputStream {
     frame_size: usize,
 }
 
+impl api::Stream for OutputStream {
+    unsafe fn properties(&self) -> api::StreamProperties {
+        let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(self.stream);
+        dbg!((
+            buffer_attrs.minreq,
+            buffer_attrs.maxlength,
+            buffer_attrs.tlength
+        ));
+        let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
+
+        api::StreamProperties {
+            num_channels: sample_spec.channels as _,
+            channel_mask: api::ChannelMask::empty(), // TODO
+            sample_rate: sample_spec.rate as _,
+            buffer_size: buffer_attrs.minreq as _,
+        }
+    }
+}
+
 impl api::OutputStream for OutputStream {
-    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut (), api::Frames) {
+    unsafe fn set_callback(&mut self, _: api::OutputCallback) -> Result<()> {
+        Err(api::Error::Validation)
+    }
+
+    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> Result<(*mut (), api::Frames)> {
         let mut size = loop {
             let size = pulse::pa_stream_writable_size(self.stream);
             if size > 0 {
@@ -410,10 +406,10 @@ impl api::OutputStream for OutputStream {
         let mut data = ptr::null_mut();
         pulse::pa_stream_begin_write(self.stream, &mut data, &mut size);
         self.cur_buffer = data;
-        (data as _, (size / self.frame_size) as _)
+        Ok((data as _, (size / self.frame_size) as _))
     }
 
-    unsafe fn release_buffer(&mut self, num_frames: api::Frames) {
+    unsafe fn release_buffer(&mut self, num_frames: api::Frames) -> Result<()> {
         pulse::pa_stream_write(
             self.stream,
             self.cur_buffer,
@@ -422,10 +418,17 @@ impl api::OutputStream for OutputStream {
             0,
             pulse::PA_SEEK_RELATIVE,
         );
+        Ok(())
     }
 }
 
 // TODO
 pub struct InputStream {}
+
+impl api::Stream for InputStream {
+    unsafe fn properties(&self) -> api::StreamProperties {
+        unimplemented!()
+    }
+}
 
 impl api::InputStream for InputStream {}

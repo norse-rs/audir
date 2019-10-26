@@ -1,3 +1,0 @@
-[submodule "sles-gen/khronos"]
-	path = sles-gen/khronos
-	url = https://github.com/KhronosGroup/OpenSL-ES-Registry.git

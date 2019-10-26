@@ -30,6 +30,12 @@ pub enum SharingMode {
     Concurrent,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamMode {
+    Polling,
+    Callback,
+}
+
 bitflags::bitflags! {
     pub struct ChannelMask: u32 {
         const FRONT_LEFT = 0b0001;
@@ -69,6 +75,7 @@ pub struct SampleDesc {
 
 pub struct InstanceProperties {
     pub driver_id: DriverId,
+    pub stream_mode: StreamMode,
     pub sharing: SharingModeFlags,
 }
 
@@ -146,18 +153,11 @@ pub trait Instance {
         sharing: SharingMode,
     ) -> Result<SampleDesc>;
 
-    unsafe fn create_poll_device(
+    unsafe fn create_device(
         &self,
         desc: DeviceDesc,
         input_desc: Option<SampleDesc>,
         output_desc: Option<SampleDesc>,
-    ) -> Result<Self::Device>;
-
-    unsafe fn create_event_device<I, O>(
-        &self,
-        desc: DeviceDesc,
-        input_desc: Option<(SampleDesc, InputCallback)>,
-        output_desc: Option<(SampleDesc, OutputCallback)>,
     ) -> Result<Self::Device>;
 
     unsafe fn destroy_device(&self, device: &mut Self::Device);
@@ -183,8 +183,9 @@ pub trait Device {
 }
 
 pub trait OutputStream: Stream {
-    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut (), Frames);
-    unsafe fn release_buffer(&mut self, num_frames: Frames);
+    unsafe fn set_callback(&mut self, callback: OutputCallback) -> Result<()>;
+    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> Result<(*mut (), Frames)>;
+    unsafe fn release_buffer(&mut self, num_frames: Frames) -> Result<()>;
 }
 
 pub trait InputStream: Stream {}

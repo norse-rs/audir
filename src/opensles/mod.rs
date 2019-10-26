@@ -1,18 +1,18 @@
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
-#[allow(dead_code)]
-mod sles;
-
 use crate::{api, api::Result};
 use std::os::raw::c_void;
 use std::ptr;
-use std::sync::Arc;
-use std::sync::{Condvar, Mutex};
+use audir_sles as sles;
 
 const BUFFER_NUM_FRAMES: usize = 1024; // TODO: random
-const BUFFER_CHAIN_SIZE: usize = 2;
+const BUFFER_CHAIN_SIZE: usize = 3; // TOdo
 
 const DEFAULT_PHYSICAL_DEVICE: api::PhysicalDevice = 0;
+
+struct CallbackData {
+    buffers: Vec<Vec<u32>>,
+    cur_buffer: usize,
+    callback: api::OutputCallback,
+}
 
 pub struct Instance {
     instance: sles::SLObjectItf,
@@ -25,6 +25,7 @@ impl api::Instance for Instance {
     unsafe fn properties() -> api::InstanceProperties {
         api::InstanceProperties {
             driver_id: api::DriverId::OpenSLES,
+            stream_mode: api::StreamMode::Callback,
             sharing: api::SharingModeFlags::CONCURRENT,
         }
     }
@@ -91,7 +92,11 @@ impl api::Instance for Instance {
         })
     }
 
-    unsafe fn create_poll_device(
+    unsafe fn destroy_device(&self, device: &mut Device) {
+        unimplemented!()
+    }
+
+    unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
         input_desc: Option<api::SampleDesc>,
@@ -132,18 +137,15 @@ impl api::Instance for Instance {
                 };
                 let ids = [sles::SL_IID_BUFFERQUEUE];
                 let requirements = [sles::SL_BOOLEAN_TRUE];
-                log::warn!(
-                    "{}",
-                    ((**self.engine).CreateAudioPlayer).unwrap()(
-                        self.engine,
-                        &mut audio_player,
-                        &mut source,
-                        &mut sink,
-                        1,
-                        ids.as_ptr(),
-                        requirements.as_ptr() as _,
-                    )
-                );
+                log::warn!("{}", ((**self.engine).CreateAudioPlayer).unwrap()(
+                    self.engine,
+                    &mut audio_player,
+                    &mut source,
+                    &mut sink,
+                    1,
+                    ids.as_ptr(),
+                    requirements.as_ptr() as _,
+                ));
             };
 
             match sample_desc.format {
@@ -180,10 +182,7 @@ impl api::Instance for Instance {
                 _ => unimplemented!(),
             }
 
-            log::warn!(
-                "realize: {}",
-                ((**audio_player).Realize).unwrap()(audio_player, sles::SL_BOOLEAN_FALSE as _)
-            );
+            ((**audio_player).Realize).unwrap()(audio_player, sles::SL_BOOLEAN_FALSE as _);
 
             let mut queue: sles::SLAndroidSimpleBufferQueueItf = ptr::null();
             ((**audio_player).GetInterface).unwrap()(
@@ -199,53 +198,18 @@ impl api::Instance for Instance {
                 &mut state as *mut _ as _,
             );
 
-            let buffers = (0..BUFFER_CHAIN_SIZE)
-                .map(|_| {
-                    let buffer_size = sample_desc.channels * BUFFER_NUM_FRAMES;
-                    let mut buffer = Vec::<u32>::with_capacity(buffer_size);
-                    buffer.set_len(buffer_size);
-                    buffer
-                })
-                .collect::<Vec<_>>();
-
-            let pair = Arc::new((Mutex::new(true), Condvar::new()));
-
-            extern "C" fn write_cb(_: sles::SLAndroidSimpleBufferQueueItf, user: *mut c_void) {
-                unsafe {
-                    let pair = Arc::from_raw(user as *mut (Mutex<bool>, Condvar));
-                    {
-                        let &(ref lock, ref cvar) = &*pair;
-                        let mut signal = lock.lock().unwrap();
-                        assert!(!*signal);
-                        *signal = true;
-                        cvar.notify_all();
-                    }
-                    Arc::into_raw(pair);
-                }
-            }
-
-            let cb_pair = Arc::into_raw(Arc::clone(&pair)); // TODO: destroy
-            ((**queue).RegisterCallback).unwrap()(queue, Some(write_cb), cb_pair as *mut _);
+            (OutputStream {
+                queue,
+                sample_desc,
+            }, state)
         });
 
         Ok(Device {
             engine: self.engine,
-            output_state: None,
+            output_stream,
+            input_stream: None,
             input_state: None,
         })
-    }
-
-    unsafe fn destroy_device(&self, device: &mut Device) {
-        unimplemented!()
-    }
-
-    unsafe fn create_event_device<I, O>(
-        &self,
-        desc: api::DeviceDesc,
-        input_desc: Option<(api::SampleDesc, api::InputCallback)>,
-        output_desc: Option<(api::SampleDesc, api::OutputCallback)>,
-    ) -> Result<Self::Device> {
-        unimplemented!()
     }
 
     unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
@@ -258,7 +222,8 @@ impl api::Instance for Instance {
 
 pub struct Device {
     engine: sles::SLEngineItf,
-    output_state: Option<sles::SLPlayItf>,
+    output_stream: Option<(OutputStream, sles::SLPlayItf)>,
+    input_stream: Option<InputStream>,
     input_state: Option<sles::SLPlayItf>,
 }
 
@@ -267,7 +232,10 @@ impl api::Device for Device {
     type InputStream = InputStream;
 
     unsafe fn get_output_stream(&self) -> Result<Self::OutputStream> {
-        unimplemented!()
+        match self.output_stream {
+            Some((stream, _)) => Ok(stream),
+            None => Err(api::Error::Validation),
+        }
     }
 
     unsafe fn get_input_stream(&self) -> Result<Self::InputStream> {
@@ -275,8 +243,8 @@ impl api::Device for Device {
     }
 
     unsafe fn start(&self) {
-        if let Some(ref state) = self.output_state {
-            ((***state).SetPlayState).unwrap()(*state, sles::SL_PLAYSTATE_PLAYING as _);
+        if let Some((_, ref state)) = self.output_stream {
+            log::warn!("start {}", ((***state).SetPlayState).unwrap()(*state, sles::SL_PLAYSTATE_PLAYING as _));
         }
         if let Some(ref state) = self.input_state {
             ((***state).SetPlayState).unwrap()(*state, sles::SL_PLAYSTATE_PLAYING as _);
@@ -288,46 +256,77 @@ impl api::Device for Device {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct OutputStream {
-    mix: sles::SLObjectItf,
-    audio_player: sles::SLObjectItf,
     queue: sles::SLAndroidSimpleBufferQueueItf,
+    sample_desc: api::SampleDesc,
+}
 
-    pair: Arc<(Mutex<bool>, Condvar)>,
-    buffers: Vec<Vec<u32>>, // TODO: alignment
-    cur_buffer: usize,
+impl api::Stream for OutputStream {
+    unsafe fn properties(&self) -> api::StreamProperties {
+        api::StreamProperties {
+            num_channels: self.sample_desc.channels,
+            channel_mask: api::ChannelMask::empty(), // TODO
+            sample_rate: self.sample_desc.sample_rate,
+            buffer_size: BUFFER_NUM_FRAMES,
+        }
+    }
 }
 
 impl api::OutputStream for OutputStream {
-    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> (*mut (), api::Frames) {
-        {
-            let &(ref lock, ref cvar) = &*self.pair;
-            let mut signal = lock.lock().unwrap();
-            while !*signal {
-                signal = cvar.wait(signal).unwrap();
+    unsafe fn set_callback(&mut self, callback: api::OutputCallback) -> Result<()> {
+        let buffers = (0..BUFFER_CHAIN_SIZE).map(|_| {
+            let buffer_size = self.sample_desc.channels * BUFFER_NUM_FRAMES;
+            let mut buffer = Vec::<u32>::with_capacity(buffer_size);
+            buffer.set_len(buffer_size);
+            buffer
+        }).collect();
+
+        let data = Box::new(CallbackData {
+            buffers,
+            cur_buffer: 0,
+            callback,
+        });
+        let data = Box::into_raw(data); // TODO: destroy
+
+        extern "C" fn write_cb(queue: sles::SLAndroidSimpleBufferQueueItf, user: *mut c_void) {
+            unsafe {
+                let data = unsafe { &mut *(user as *mut CallbackData) };
+                data.cur_buffer = (data.cur_buffer + 1) % data.buffers.len();
+                let buffer = &mut data.buffers[data.cur_buffer];
+
+                (data.callback)(buffer.as_mut_ptr() as _, buffer.len() / 2); // TODO: channels + sizeof u32
+                ((**queue).Enqueue).unwrap()(
+                    queue,
+                    buffer.as_mut_ptr() as _,
+                    (buffer.len() * 4) as _,
+                );
             }
-            assert!(*signal);
-            *signal = false;
         }
 
-        // cycle active buffers
-        self.cur_buffer = (self.cur_buffer + 1) % self.buffers.len();
+        (**self.queue).RegisterCallback.unwrap()(self.queue, Some(write_cb), data as _);
 
-        let buffer = &mut self.buffers[self.cur_buffer];
+        // Enqueue one frame to get the ball rolling
+        write_cb(self.queue, data as _);
 
-        (buffer.as_mut_ptr() as _, buffer.len() / 2) // TODO: channels + sizeof u32
+        Ok(())
     }
 
-    unsafe fn release_buffer(&mut self, num_frames: api::Frames) {
-        let buffer = &mut self.buffers[self.cur_buffer];
-        ((**self.queue).Enqueue).unwrap()(
-            self.queue,
-            buffer.as_mut_ptr() as _,
-            (buffer.len() * 4) as _,
-        ); // TODO: sizeof u32, num_frames
+    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> Result<(*mut (), api::Frames)> {
+        Err(api::Error::Validation)
+    }
+
+    unsafe fn release_buffer(&mut self, num_frames: api::Frames) -> Result<()> {
+        Err(api::Error::Validation)
     }
 }
 
 pub struct InputStream {}
+
+impl api::Stream for InputStream {
+    unsafe fn properties(&self) -> api::StreamProperties {
+        unimplemented!()
+    }
+}
 
 impl api::InputStream for InputStream {}

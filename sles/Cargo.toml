@@ -1,0 +1,9 @@
+[package]
+name = "audir-sles"
+version = "0.1.0"
+authors = ["msiglreith <m.siglreith@gmail.com>"]
+edition = "2018"
+build = "build.rs"
+workspace = ".."
+
+[dependencies]
