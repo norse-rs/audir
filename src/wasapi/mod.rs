@@ -265,7 +265,8 @@ impl api::Instance for Instance {
         if device.is_null() {
             None
         } else {
-            Some(device.as_mut_ptr() as _)
+            let id = Self::get_physical_device_id(device);
+            Some(self.physical_devices[&id].raw())
         }
     }
 
