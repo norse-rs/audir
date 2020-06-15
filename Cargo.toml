@@ -8,8 +8,6 @@ edition = "2018"
 
 [workspace]
 members = [
-    "sles",
-    "sles-gen",
     "examples/music"
 ]
 
@@ -28,4 +26,4 @@ libpulse-sys = { version = "1.11", default-features = false }
 coreaudio-sys = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
-audir-sles = { path = "sles" }
+audir-sles = "0.1"
