@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             sample_rate: 48_000,
         };
 
-        let device = instance.create_poll_device(
+        let device = instance.create_device(
             audir::DeviceDesc {
                 physical_device: output_device,
                 sharing,
@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         device.start();
 
         loop {
-            let (raw_buffer, num_frames) = stream.acquire_buffer(!0);
+            let (raw_buffer, num_frames) = stream.acquire_buffer(!0)?;
             let buffer = std::slice::from_raw_parts_mut(
                 raw_buffer as *mut f32,
                 num_frames as usize * num_channels,
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             for dt in 0..num_frames {
                 let phase = 2.0 * std::f32::consts::PI * cycle;
-                let sample = phase.sin() * 0.5; // ((phase.sin() * 0.5 + 0.5) * std::u32::MAX as f32) as u32;
+                let sample = phase.sin() * 0.5;
 
                 buffer[num_channels * dt as usize] = sample;
                 buffer[num_channels * dt as usize + 1] = sample;
@@ -86,7 +86,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 cycle = (cycle + cycle_step) % 1.0;
             }
 
-            stream.release_buffer(num_frames);
+            stream.release_buffer(num_frames)?;
         }
     }
 

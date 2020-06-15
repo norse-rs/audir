@@ -231,7 +231,6 @@ impl api::Instance for Instance {
 
         let (tx, event_rx) = channel();
         let notification_client = NotificationClient::create_raw(tx);
-        dbg!(instance.RegisterEndpointNotificationCallback(notification_client as _));
 
         let mut physical_devices = HashMap::new();
         Self::enumerate_physical_devices_by_flow(&mut physical_devices, instance, eCapture);
