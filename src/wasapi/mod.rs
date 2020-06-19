@@ -69,7 +69,7 @@ pub struct NotificationClient {
 #[com_impl::com_impl]
 unsafe impl IMMNotificationClient for NotificationClient {
     unsafe fn on_device_state_changed(&self, pwstrDeviceId: LPCWSTR, state: DWORD) -> HRESULT {
-        self.tx.send(Event::Changed {
+        let _ = self.tx.send(Event::Changed {
             device: string_from_wstr(pwstrDeviceId),
             state,
         });
@@ -77,12 +77,12 @@ unsafe impl IMMNotificationClient for NotificationClient {
     }
 
     unsafe fn on_device_added(&self, pwstrDeviceId: LPCWSTR) -> HRESULT {
-        self.tx.send(Event::Added(string_from_wstr(pwstrDeviceId)));
+        let _ = self.tx.send(Event::Added(string_from_wstr(pwstrDeviceId)));
         winerror::S_OK
     }
 
     unsafe fn on_device_removed(&self, pwstrDeviceId: LPCWSTR) -> HRESULT {
-        self.tx
+        let _ = self.tx
             .send(Event::Removed(string_from_wstr(pwstrDeviceId)));
         winerror::S_OK
     }
@@ -94,7 +94,7 @@ unsafe impl IMMNotificationClient for NotificationClient {
         pwstrDefaultDeviceId: LPCWSTR,
     ) -> HRESULT {
         if role == eConsole {
-            self.tx.send(Event::Default {
+            let _ = self.tx.send(Event::Default {
                 device: string_from_wstr(pwstrDefaultDeviceId),
                 flow,
             });
@@ -112,8 +112,8 @@ unsafe impl IMMNotificationClient for NotificationClient {
     }
 }
 
-fn map_sample_desc(sample_desc: &api::SampleDesc) -> Option<WAVEFORMATEXTENSIBLE> {
-    let (format_tag, sub_format, bytes_per_sample) = match sample_desc.format {
+fn map_frame_desc(frame_desc: &api::FrameDesc) -> Option<WAVEFORMATEXTENSIBLE> {
+    let (format_tag, sub_format, bytes_per_sample) = match frame_desc.format {
         api::Format::F32 => (
             WAVE_FORMAT_EXTENSIBLE,
             ksmedia::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
@@ -127,10 +127,10 @@ fn map_sample_desc(sample_desc: &api::SampleDesc) -> Option<WAVEFORMATEXTENSIBLE
 
     let format = WAVEFORMATEX {
         wFormatTag: format_tag,
-        nChannels: sample_desc.channels as _,
-        nSamplesPerSec: sample_desc.sample_rate as _,
-        nAvgBytesPerSec: (sample_desc.channels * sample_desc.sample_rate * bytes_per_sample) as _,
-        nBlockAlign: (sample_desc.channels * bytes_per_sample) as _,
+        nChannels: frame_desc.channels as _,
+        nSamplesPerSec: frame_desc.sample_rate as _,
+        nAvgBytesPerSec: (frame_desc.channels * frame_desc.sample_rate * bytes_per_sample) as _,
+        nBlockAlign: (frame_desc.channels * bytes_per_sample) as _,
         wBitsPerSample: bits_per_sample as _,
         cbSize: (mem::size_of::<WAVEFORMATEXTENSIBLE>() - mem::size_of::<WAVEFORMATEX>()) as _,
     };
@@ -143,7 +143,7 @@ fn map_sample_desc(sample_desc: &api::SampleDesc) -> Option<WAVEFORMATEXTENSIBLE
     })
 }
 
-unsafe fn map_waveformat(format: *const WAVEFORMATEX) -> Result<api::SampleDesc> {
+unsafe fn map_waveformat(format: *const WAVEFORMATEX) -> Result<api::FrameDesc> {
     let wave_format = &*format;
     match wave_format.wFormatTag {
         WAVE_FORMAT_EXTENSIBLE => {
@@ -157,7 +157,7 @@ unsafe fn map_waveformat(format: *const WAVEFORMATEX) -> Result<api::SampleDesc>
                     return Err(api::Error::Validation); // TODO
                 };
 
-            Ok(api::SampleDesc {
+            Ok(api::FrameDesc {
                 format,
                 channels: wave_format.nChannels as _,
                 sample_rate: wave_format.nSamplesPerSec as _,
@@ -184,7 +184,7 @@ struct PhysicalDevice {
 }
 
 impl PhysicalDevice {
-    unsafe fn default_format(&self, sharing: api::SharingMode) -> Result<api::SampleDesc> {
+    unsafe fn default_format(&self, sharing: api::SharingMode) -> Result<api::FrameDesc> {
         match sharing {
             api::SharingMode::Concurrent => {
                 let mut mix_format = ptr::null_mut();
@@ -316,7 +316,7 @@ impl api::Instance for Instance {
         &self,
         physical_device: api::PhysicalDevice,
         sharing: api::SharingMode,
-    ) -> Result<api::SampleDesc> {
+    ) -> Result<api::FrameDesc> {
         let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
         physical_device.default_format(sharing)
     }
@@ -325,7 +325,7 @@ impl api::Instance for Instance {
         &self,
         physical_device: api::PhysicalDevice,
         sharing: api::SharingMode,
-    ) -> Result<api::SampleDesc> {
+    ) -> Result<api::FrameDesc> {
         let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
         physical_device.default_format(sharing)
     }
@@ -333,41 +333,38 @@ impl api::Instance for Instance {
     unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
-        input_sample_desc: Option<api::SampleDesc>,
-        output_sample_desc: Option<api::SampleDesc>,
+        channels: api::Channels,
     ) -> Result<Device> {
+        if channels.input != 0 && channels.output != 0 {
+            return Err(api::Error::Validation);
+        }
+
         let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
         let sharing = map_sharing_mode(desc.sharing);
 
         let fence = Fence::create(false, false);
 
-        if let Some(sample_desc) = input_sample_desc {
-            let mix_format = map_sample_desc(&sample_desc).unwrap(); // todo
-            dbg!(physical_device.audio_client.Initialize(
-                sharing,
-                AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-                0,
-                0,
-                &mix_format as *const _ as _,
-                ptr::null(),
-            ));
-        } else if let Some(sample_desc) = output_sample_desc {
-            let mix_format = map_sample_desc(&sample_desc).unwrap(); // todo
-            dbg!(physical_device.audio_client.Initialize(
-                sharing,
-                AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-                0,
-                0,
-                &mix_format as *const _ as _,
-                ptr::null(),
-            ));
-        }
+        let frame_desc = api::FrameDesc {
+            format: desc.sample_desc.format,
+            channels: channels.input.max(channels.output),
+            sample_rate: desc.sample_desc.sample_rate,
+        };
+        let mix_format = map_frame_desc(&frame_desc).unwrap(); // todo
+        dbg!(physical_device.audio_client.Initialize(
+            sharing,
+            AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+            0,
+            0,
+            &mix_format as *const _ as _,
+            ptr::null(),
+        ));
 
         physical_device.audio_client.SetEventHandle(fence.0);
 
         Ok(Device {
             client: physical_device.audio_client,
             fence,
+            stream: if channels.input > 0 { StreamTy::Input } else { StreamTy::Output },
         })
     }
 
@@ -376,7 +373,7 @@ impl api::Instance for Instance {
         device.fence.destory();
     }
 
-    unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
+    unsafe fn poll_events<F>(&self, _callback: F) -> Result<()>
     where
         F: FnMut(api::Event),
     {
@@ -476,11 +473,11 @@ impl Instance {
         &self,
         physical_device: api::PhysicalDevice,
         sharing: api::SharingMode,
-        sample_desc: api::SampleDesc,
+        frame_desc: api::FrameDesc,
     ) {
         let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
 
-        let wave_format = map_sample_desc(&sample_desc).unwrap(); // todo
+        let wave_format = map_frame_desc(&frame_desc).unwrap(); // todo
         let sharing = map_sharing_mode(sharing);
 
         let mut closest_format = ptr::null_mut();
@@ -502,46 +499,54 @@ impl std::ops::Drop for Instance {
     }
 }
 
+enum StreamTy {
+    Input,
+    Output,
+}
+
 pub struct Device {
     client: WeakPtr<IAudioClient>,
     fence: Fence,
+    stream: StreamTy,
 }
 
 impl api::Device for Device {
-    type OutputStream = OutputStream;
-    type InputStream = InputStream;
+    type Stream = Stream;
 
-    unsafe fn get_output_stream(&self) -> Result<OutputStream> {
-        let mut render_client = WeakPtr::<IAudioRenderClient>::null();
+    unsafe fn get_stream(&self) -> Result<Stream> {
+        match self.stream {
+            StreamTy::Input => {
+                let mut capture_client = WeakPtr::<IAudioCaptureClient>::null();
+                self.client.GetService(
+                    &IAudioCaptureClient::uuidof(),
+                    capture_client.mut_void() as _,
+                );
 
-        self.client
-            .GetService(&IAudioRenderClient::uuidof(), render_client.mut_void() as _);
+                Ok(Stream::Input {
+                    client: capture_client,
+                    fence: self.fence,
+                })
+            }
+            StreamTy::Output => {
+                let mut render_client = WeakPtr::<IAudioRenderClient>::null();
 
-        let buffer_size = {
-            let mut size = 0;
-            self.client.GetBufferSize(&mut size);
-            size
-        };
+                self.client
+                    .GetService(&IAudioRenderClient::uuidof(), render_client.mut_void() as _);
 
-        Ok(OutputStream {
-            client: render_client,
-            device: self.client,
-            buffer_size,
-            fence: self.fence,
-        })
-    }
+                let buffer_size = {
+                    let mut size = 0;
+                    self.client.GetBufferSize(&mut size);
+                    size
+                };
 
-    unsafe fn get_input_stream(&self) -> Result<InputStream> {
-        let mut capture_client = WeakPtr::<IAudioCaptureClient>::null();
-        self.client.GetService(
-            &IAudioCaptureClient::uuidof(),
-            capture_client.mut_void() as _,
-        );
-
-        Ok(InputStream {
-            client: capture_client,
-            fence: self.fence,
-        })
+                Ok(Stream::Output {
+                    client: render_client,
+                    device: self.client,
+                    buffer_size,
+                    fence: self.fence,
+                })
+            }
+        }
     }
 
     unsafe fn start(&self) {
@@ -553,116 +558,126 @@ impl api::Device for Device {
     }
 }
 
-pub struct InputStream {
-    client: WeakPtr<IAudioCaptureClient>,
-    fence: Fence,
+pub enum Stream {
+    Input {
+        client: WeakPtr<IAudioCaptureClient>,
+        fence: Fence,
+    },
+    Output {
+        device: WeakPtr<IAudioClient>,
+        client: WeakPtr<IAudioRenderClient>,
+        buffer_size: u32,
+        fence: Fence,
+    },
 }
 
-impl api::Stream for InputStream {
+impl api::Stream for Stream {
     unsafe fn properties(&self) -> api::StreamProperties {
-        unimplemented!()
-    }
-}
+        match *self {
+            Stream::Input { .. } => unimplemented!(),
+            Stream::Output { device, .. } => {
+                let buffer_size = {
+                    let mut size = 0;
+                    device.GetBufferSize(&mut size);
+                    size as _
+                };
 
-impl api::InputStream for InputStream {}
+                let mut mix_format = ptr::null_mut();
+                device.GetMixFormat(&mut mix_format);
 
-impl InputStream {
-    pub unsafe fn acquire_buffer(&self, timeout_ms: u32) -> (*const u8, api::Frames) {
-        self.fence.wait(timeout_ms);
+                match (*mix_format).wFormatTag {
+                    WAVE_FORMAT_EXTENSIBLE => {
+                        let format = &*(mix_format as *const WAVEFORMATEXTENSIBLE);
 
-        let mut len = 0;
-        self.client.GetNextPacketSize(&mut len);
+                        let mut channel_mask = api::ChannelMask::empty();
+                        if format.dwChannelMask & SPEAKER_FRONT_LEFT != 0 {
+                            channel_mask |= api::ChannelMask::FRONT_LEFT;
+                        }
+                        if format.dwChannelMask & SPEAKER_FRONT_RIGHT != 0 {
+                            channel_mask |= api::ChannelMask::FRONT_RIGHT;
+                        }
+                        if format.dwChannelMask & SPEAKER_FRONT_CENTER != 0 {
+                            channel_mask |= api::ChannelMask::FRONT_CENTER;
+                        }
+                        // TODO: more channels
 
-        let mut data = ptr::null_mut();
-        let mut num_frames = 0;
-        let mut flags = 0;
-
-        self.client.GetBuffer(
-            &mut data,
-            &mut num_frames,
-            &mut flags,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-
-        if flags != 0 {
-            dbg!(flags);
-        }
-
-        (data, num_frames as _)
-    }
-
-    pub unsafe fn release_buffer(&self, num_frames: api::Frames) {
-        self.client.ReleaseBuffer(num_frames as _);
-    }
-}
-
-pub struct OutputStream {
-    device: WeakPtr<IAudioClient>,
-    client: WeakPtr<IAudioRenderClient>,
-    buffer_size: u32,
-    fence: Fence,
-}
-
-impl api::Stream for OutputStream {
-    unsafe fn properties(&self) -> api::StreamProperties {
-        let buffer_size = {
-            let mut size = 0;
-            self.device.GetBufferSize(&mut size);
-            size as _
-        };
-
-        let mut mix_format = ptr::null_mut();
-        self.device.GetMixFormat(&mut mix_format);
-
-        match (*mix_format).wFormatTag {
-            WAVE_FORMAT_EXTENSIBLE => {
-                let format = &*(mix_format as *const WAVEFORMATEXTENSIBLE);
-
-                let mut channel_mask = api::ChannelMask::empty();
-                if format.dwChannelMask & SPEAKER_FRONT_LEFT != 0 {
-                    channel_mask |= api::ChannelMask::FRONT_LEFT;
-                }
-                if format.dwChannelMask & SPEAKER_FRONT_RIGHT != 0 {
-                    channel_mask |= api::ChannelMask::FRONT_RIGHT;
-                }
-                if format.dwChannelMask & SPEAKER_FRONT_CENTER != 0 {
-                    channel_mask |= api::ChannelMask::FRONT_CENTER;
-                }
-                // TODO: more channels
-
-                api::StreamProperties {
-                    num_channels: format.Format.nChannels as _,
-                    channel_mask,
-                    sample_rate: format.Format.nSamplesPerSec as _,
-                    buffer_size,
+                        api::StreamProperties {
+                            num_channels: format.Format.nChannels as _,
+                            channel_mask,
+                            sample_rate: format.Format.nSamplesPerSec as _,
+                            buffer_size,
+                        }
+                    }
+                    _ => unimplemented!(),
                 }
             }
-            _ => unimplemented!(),
         }
     }
-}
 
-impl api::OutputStream for OutputStream {
-    unsafe fn set_callback(&mut self, _: api::OutputCallback) -> Result<()> {
-        Err(api::Error::Validation)
+    unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<api::StreamBuffers> {
+        match self {
+            Stream::Input { client, fence } => {
+                fence.wait(timeout_ms);
+
+                let mut len = 0;
+                client.GetNextPacketSize(&mut len);
+
+                let mut data = ptr::null_mut();
+                let mut num_frames = 0;
+                let mut flags = 0;
+
+                client.GetBuffer(
+                    &mut data,
+                    &mut num_frames,
+                    &mut flags,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
+
+                if flags != 0 {
+                    dbg!(flags);
+                }
+
+                Ok(api::StreamBuffers {
+                    frames: num_frames as _,
+                    input: data as _,
+                    output: ptr::null_mut(),
+                })
+            }
+            Stream::Output { device, client, buffer_size, fence } => {
+                fence.wait(timeout_ms);
+
+                let mut data = ptr::null_mut();
+                let mut padding = 0;
+
+                device.GetCurrentPadding(&mut padding);
+
+                let len = *buffer_size - padding;
+                client.GetBuffer(len, &mut data);
+                Ok(api::StreamBuffers {
+                    frames: len as _,
+                    input: ptr::null(),
+                    output: data as _,
+                })
+            }
+        }
     }
 
-    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> Result<(*mut (), api::Frames)> {
-        self.fence.wait(timeout_ms);
 
-        let mut data = ptr::null_mut();
-        let mut padding = 0;
-
-        self.device.GetCurrentPadding(&mut padding);
-
-        let len = self.buffer_size - padding;
-        self.client.GetBuffer(len, &mut data);
-        Ok((data as _, len as _))
-    }
-
-    unsafe fn release_buffer(&mut self, num_frames: api::Frames) -> Result<()> {
-        self.client.ReleaseBuffer(num_frames as _, 0);
+    unsafe fn release_buffers(&mut self, num_frames: api::Frames) -> Result<()> {
+        match self {
+            Stream::Input { client, .. } => {
+                client.ReleaseBuffer(num_frames as _);
+            }
+            Stream::Output { client, .. } => {
+                client.ReleaseBuffer(num_frames as _, 0);
+            }
+        }
         Ok(())
     }
+
+    unsafe fn set_callback(&mut self, _: api::StreamCallback) -> Result<()> {
+        Err(api::Error::Validation)
+    }
 }
+

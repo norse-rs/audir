@@ -5,7 +5,7 @@ use audir::pulse::Instance;
 #[cfg(windows)]
 use audir::wasapi::Instance;
 
-use audir::{Device, Instance as InstanceTrait, OutputStream, Stream};
+use audir::{Device, Instance as InstanceTrait, Stream};
 
 #[cfg(target_os = "android")]
 use std::path::Path;
@@ -69,35 +69,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap(),
         };
 
-        let sharing = audir::SharingMode::Concurrent;
-        let format = audir::SampleDesc {
-            format: audir::Format::F32,
-            channels: 2,
-            sample_rate: 48_000,
-        };
-
         let device = instance.create_device(
             audir::DeviceDesc {
                 physical_device: output_device,
-                sharing,
+                sharing: audir::SharingMode::Concurrent,
+                sample_desc: audir::SampleDesc {
+                    format: audir::Format::F32,
+                    sample_rate: 48_000,
+                },
             },
-            None,
-            Some(format),
+            audir::Channels {
+                input: 0,
+                output: 2,
+            },
         )?;
 
-        let mut stream = device.get_output_stream()?;
+        let mut stream = device.get_stream()?;
 
         let properties = stream.properties();
         let num_channels = properties.num_channels;
 
         let mut sample = 0;
-        let mut callback = move |raw_buffer, num_frames| {
+        let mut callback = move |buffers: audir::StreamBuffers| {
             let buffer = std::slice::from_raw_parts_mut(
-                raw_buffer as *mut f32,
-                num_frames as usize * num_channels,
+                buffers.output as *mut f32,
+                buffers.frames as usize * num_channels,
             );
 
-            for dt in 0..num_frames as usize {
+            for dt in 0..buffers.frames as usize {
                 let frame = samples[sample];
                 buffer[num_channels * dt as usize] = frame[0];
                 buffer[num_channels * dt as usize + 1] = frame[1];
@@ -114,13 +113,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             audir::StreamMode::Polling => {
                 device.start();
                 loop {
-                    let (raw_buffer, num_frames) = stream.acquire_buffer(!0)?;
-                    callback(raw_buffer, num_frames);
-                    stream.release_buffer(num_frames)?;
+                    let buffers = stream.acquire_buffers(!0)?;
+                    callback(buffers);
+                    stream.release_buffers(buffers.frames)?;
                 }
             }
         }
     }
-
-    Ok(())
 }

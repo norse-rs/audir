@@ -1,4 +1,4 @@
-use audir::{Device, Instance, OutputStream, Stream};
+use audir::{Device, Instance, Stream};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -42,23 +42,22 @@ fn main() -> Result<(), Box<dyn Error>> {
             instance.physical_device_properties(output_device)?
         );
 
-        let sharing = audir::SharingMode::Concurrent;
-        let format = audir::SampleDesc {
-            format: audir::Format::F32,
-            channels: 2,
-            sample_rate: 48_000,
-        };
-
         let device = instance.create_device(
             audir::DeviceDesc {
                 physical_device: output_device,
-                sharing,
+                sharing: audir::SharingMode::Concurrent,
+                sample_desc: audir::SampleDesc {
+                    format: audir::Format::F32,
+                    sample_rate: 48_000,
+                },
             },
-            None,
-            Some(format),
+            audir::Channels {
+                input: 0,
+                output: 2,
+            },
         )?;
 
-        let mut stream = device.get_output_stream()?;
+        let mut stream = device.get_stream()?;
         let properties = stream.properties();
 
         let frequency = 440.0;
@@ -70,13 +69,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         device.start();
 
         loop {
-            let (raw_buffer, num_frames) = stream.acquire_buffer(!0)?;
+            let audir::StreamBuffers { output, frames, .. } = stream.acquire_buffers(!0)?;
             let buffer = std::slice::from_raw_parts_mut(
-                raw_buffer as *mut f32,
-                num_frames as usize * num_channels,
+                output as *mut f32,
+                frames as usize * num_channels,
             );
 
-            for dt in 0..num_frames {
+            for dt in 0..frames {
                 let phase = 2.0 * std::f32::consts::PI * cycle;
                 let sample = phase.sin() * 0.5;
 
@@ -86,9 +85,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 cycle = (cycle + cycle_step) % 1.0;
             }
 
-            stream.release_buffer(num_frames)?;
+            stream.release_buffers(frames)?;
         }
     }
-
-    Ok(())
 }

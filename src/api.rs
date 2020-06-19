@@ -69,6 +69,12 @@ pub enum Format {
 #[derive(Debug, Copy, Clone)]
 pub struct SampleDesc {
     pub format: Format,
+    pub sample_rate: usize,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct FrameDesc {
+    pub format: Format,
     pub channels: usize,
     pub sample_rate: usize,
 }
@@ -116,12 +122,24 @@ pub struct StreamDesc {}
 pub struct DeviceDesc {
     pub physical_device: PhysicalDevice,
     pub sharing: SharingMode,
+    pub sample_desc: SampleDesc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Channels {
+    pub input: usize,
+    pub output: usize,
 }
 
 pub type Result<T> = result::Result<T, Error>;
 
-pub type InputCallback = Box<dyn FnMut(*const (), Frames) + Send>;
-pub type OutputCallback = Box<dyn FnMut(*mut (), Frames) + Send>;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StreamBuffers {
+    pub frames: usize,
+    pub input: *const (),
+    pub output: *mut (),
+}
+pub type StreamCallback = Box<dyn FnMut(StreamBuffers) + Send>;
 
 pub trait Instance {
     type Device: Device;
@@ -145,19 +163,18 @@ pub trait Instance {
         &self,
         physical_device: PhysicalDevice,
         sharing: SharingMode,
-    ) -> Result<SampleDesc>;
+    ) -> Result<FrameDesc>;
 
     unsafe fn physical_device_default_output_format(
         &self,
         physical_device: PhysicalDevice,
         sharing: SharingMode,
-    ) -> Result<SampleDesc>;
+    ) -> Result<FrameDesc>;
 
     unsafe fn create_device(
         &self,
         desc: DeviceDesc,
-        input_desc: Option<SampleDesc>,
-        output_desc: Option<SampleDesc>,
+        channels: Channels,
     ) -> Result<Self::Device>;
 
     unsafe fn destroy_device(&self, device: &mut Self::Device);
@@ -169,23 +186,15 @@ pub trait Instance {
 
 pub trait Stream {
     unsafe fn properties(&self) -> StreamProperties;
+    unsafe fn set_callback(&mut self, callback: StreamCallback) -> Result<()>;
+    unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<StreamBuffers>;
+    unsafe fn release_buffers(&mut self, num_frames: Frames) -> Result<()>;
 }
 
 pub trait Device {
-    type OutputStream: OutputStream;
-    type InputStream: InputStream;
-
-    unsafe fn get_output_stream(&self) -> Result<Self::OutputStream>;
-    unsafe fn get_input_stream(&self) -> Result<Self::InputStream>;
+    type Stream: Stream;
+    unsafe fn get_stream(&self) -> Result<Self::Stream>;
 
     unsafe fn start(&self);
     unsafe fn stop(&self);
 }
-
-pub trait OutputStream: Stream {
-    unsafe fn set_callback(&mut self, callback: OutputCallback) -> Result<()>;
-    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> Result<(*mut (), Frames)>;
-    unsafe fn release_buffer(&mut self, num_frames: Frames) -> Result<()>;
-}
-
-pub trait InputStream: Stream {}
