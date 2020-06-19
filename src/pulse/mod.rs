@@ -15,7 +15,7 @@ pub struct PhysicalDevice {
 type PhysialDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
 
 impl PhysicalDevice {
-    fn default_format(&self) -> Result<api::SampleDesc> {
+    fn default_format(&self) -> Result<api::FrameDesc> {
         let format = match self.sample_spec.format {
             pulse::pa_sample_format_t::F32le => api::Format::F32,
             pulse::pa_sample_format_t::S16le => api::Format::I16,
@@ -26,7 +26,7 @@ impl PhysicalDevice {
             }
         };
 
-        Ok(api::SampleDesc {
+        Ok(api::FrameDesc {
             format,
             channels: self.sample_spec.channels as _,
             sample_rate: self.sample_spec.rate as _,
@@ -212,7 +212,7 @@ impl api::Instance for Instance {
         &self,
         physical_device: api::PhysicalDevice,
         sharing: api::SharingMode,
-    ) -> Result<api::SampleDesc> {
+    ) -> Result<api::FrameDesc> {
         let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
         physical_device.default_format()
     }
@@ -221,7 +221,7 @@ impl api::Instance for Instance {
         &self,
         physical_device: api::PhysicalDevice,
         sharing: api::SharingMode,
-    ) -> Result<api::SampleDesc> {
+    ) -> Result<api::FrameDesc> {
         let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
         physical_device.default_format()
     }
@@ -229,56 +229,54 @@ impl api::Instance for Instance {
     unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
-        input_sample_desc: Option<api::SampleDesc>,
-        output_sample_desc: Option<api::SampleDesc>,
+        channels: api::Channels,
     ) -> Result<Self::Device> {
         let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
 
         let input_stream = ptr::null_mut(); // TODO
-        let output_stream = match output_sample_desc {
-            Some(sample_desc) => {
-                let spec = pulse::pa_sample_spec {
-                    format: map_format(sample_desc.format),
-                    channels: sample_desc.channels as _,
-                    rate: sample_desc.sample_rate as _,
-                };
+        let output_stream = if channels.output > 0 {
+            let spec = pulse::pa_sample_spec {
+                format: map_format(desc.sample_desc.format),
+                channels: channels.output as _,
+                rate: desc.sample_desc.sample_rate as _,
+            };
 
-                let stream = dbg!(pulse::pa_stream_new(
-                    self.context,
-                    b"audir\0".as_ptr() as _,
-                    &spec,
-                    ptr::null()
-                )); // TODO: name, channel map
+            let stream = dbg!(pulse::pa_stream_new(
+                self.context,
+                b"audir\0".as_ptr() as _,
+                &spec,
+                ptr::null()
+            )); // TODO: name, channel map
 
-                // TODO
-                let attribs = pulse::pa_buffer_attr {
-                    maxlength: !0,
-                    tlength: !0,
-                    prebuf: !0,
-                    minreq: !0,
-                    fragsize: !0,
-                };
+            // TODO
+            let attribs = pulse::pa_buffer_attr {
+                maxlength: !0,
+                tlength: !0,
+                prebuf: !0,
+                minreq: !0,
+                fragsize: !0,
+            };
 
-                dbg!(pulse::pa_stream_connect_playback(
-                    stream,
-                    ptr::null(),
-                    &attribs,
-                    0,
-                    ptr::null(),
-                    ptr::null_mut(),
-                ));
+            dbg!(pulse::pa_stream_connect_playback(
+                stream,
+                ptr::null(),
+                &attribs,
+                0,
+                ptr::null(),
+                ptr::null_mut(),
+            ));
 
-                loop {
-                    let state = dbg!(pulse::pa_stream_get_state(stream));
-                    if state == pulse::PA_STREAM_READY {
-                        break;
-                    }
-                    pulse::pa_mainloop_iterate(self.mainloop, true as _, ptr::null_mut());
+            loop {
+                let state = dbg!(pulse::pa_stream_get_state(stream));
+                if state == pulse::PA_STREAM_READY {
+                    break;
                 }
-
-                stream
+                pulse::pa_mainloop_iterate(self.mainloop, true as _, ptr::null_mut());
             }
-            None => ptr::null_mut(),
+
+            stream
+        } else {
+            ptr::null_mut()
         };
 
         Ok(Device {
@@ -323,10 +321,9 @@ pub struct Device {
 }
 
 impl api::Device for Device {
-    type OutputStream = OutputStream;
-    type InputStream = InputStream;
+    type Stream = Stream;
 
-    unsafe fn get_output_stream(&self) -> Result<OutputStream> {
+    unsafe fn get_stream(&self) -> Result<Stream> {
         let stream = self.output_stream;
         if stream.is_null() {
             return Err(api::Error::Validation);
@@ -335,20 +332,12 @@ impl api::Device for Device {
         let sample_spec = &*pulse::pa_stream_get_sample_spec(stream);
         let frame_size = pulse::pa_frame_size(sample_spec);
 
-        Ok(OutputStream {
+        Ok(Stream {
             mainloop: self.mainloop,
             stream,
             cur_buffer: ptr::null_mut(),
             frame_size,
         })
-    }
-
-    unsafe fn get_input_stream(&self) -> Result<InputStream> {
-        if self.input_stream.is_null() {
-            return Err(api::Error::Validation);
-        }
-
-        Ok(InputStream {})
     }
 
     unsafe fn start(&self) {
@@ -360,14 +349,14 @@ impl api::Device for Device {
     }
 }
 
-pub struct OutputStream {
+pub struct Stream {
     mainloop: *mut pulse::pa_mainloop,
     stream: *mut pulse::pa_stream,
     cur_buffer: *mut c_void,
     frame_size: usize,
 }
 
-impl api::Stream for OutputStream {
+impl api::Stream for Stream {
     unsafe fn properties(&self) -> api::StreamProperties {
         let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(self.stream);
         dbg!((
@@ -384,14 +373,12 @@ impl api::Stream for OutputStream {
             buffer_size: buffer_attrs.minreq as _,
         }
     }
-}
 
-impl api::OutputStream for OutputStream {
-    unsafe fn set_callback(&mut self, _: api::OutputCallback) -> Result<()> {
+    unsafe fn set_callback(&mut self, _: api::StreamCallback) -> Result<()> {
         Err(api::Error::Validation)
     }
 
-    unsafe fn acquire_buffer(&mut self, timeout_ms: u32) -> Result<(*mut (), api::Frames)> {
+    unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<api::StreamBuffers> {
         let mut size = loop {
             let size = pulse::pa_stream_writable_size(self.stream);
             if size > 0 {
@@ -406,10 +393,14 @@ impl api::OutputStream for OutputStream {
         let mut data = ptr::null_mut();
         pulse::pa_stream_begin_write(self.stream, &mut data, &mut size);
         self.cur_buffer = data;
-        Ok((data as _, (size / self.frame_size) as _))
+        Ok(api::StreamBuffers {
+            input: ptr::null(),
+            output: data as _,
+            frames: (size / self.frame_size) as _,
+        })
     }
 
-    unsafe fn release_buffer(&mut self, num_frames: api::Frames) -> Result<()> {
+    unsafe fn release_buffers(&mut self, num_frames: api::Frames) -> Result<()> {
         pulse::pa_stream_write(
             self.stream,
             self.cur_buffer,
@@ -421,14 +412,3 @@ impl api::OutputStream for OutputStream {
         Ok(())
     }
 }
-
-// TODO
-pub struct InputStream {}
-
-impl api::Stream for InputStream {
-    unsafe fn properties(&self) -> api::StreamProperties {
-        unimplemented!()
-    }
-}
-
-impl api::InputStream for InputStream {}
