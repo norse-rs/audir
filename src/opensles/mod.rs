@@ -1,7 +1,7 @@
 use crate::{api, api::Result};
+use audir_sles as sles;
 use std::os::raw::c_void;
 use std::ptr;
-use audir_sles as sles;
 
 const BUFFER_NUM_FRAMES: usize = 1024; // TODO: random
 const BUFFER_CHAIN_SIZE: usize = 3; // TOdo
@@ -135,15 +135,18 @@ impl api::Instance for Instance {
             };
             let ids = [sles::SL_IID_BUFFERQUEUE];
             let requirements = [sles::SL_BOOLEAN_TRUE];
-            log::warn!("{}", ((**self.engine).CreateAudioPlayer).unwrap()(
-                self.engine,
-                &mut audio_player,
-                &mut source,
-                &mut sink,
-                1,
-                ids.as_ptr(),
-                requirements.as_ptr() as _,
-            ));
+            log::warn!(
+                "{}",
+                ((**self.engine).CreateAudioPlayer).unwrap()(
+                    self.engine,
+                    &mut audio_player,
+                    &mut source,
+                    &mut sink,
+                    1,
+                    ids.as_ptr(),
+                    requirements.as_ptr() as _,
+                )
+            );
         };
 
         match desc.sample_desc.format {
@@ -154,8 +157,7 @@ impl api::Instance for Instance {
                     sampleRate: (desc.sample_desc.sample_rate * 1000) as _,
                     bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                     containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
-                    channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT)
-                        as _, // TODO
+                    channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT) as _, // TODO
                     endianness: sles::SL_BYTEORDER_LITTLEENDIAN as _, // TODO
                     representation: sles::SL_ANDROID_PCM_REPRESENTATION_FLOAT as _,
                 };
@@ -169,8 +171,7 @@ impl api::Instance for Instance {
                     samplesPerSec: (desc.sample_desc.sample_rate * 1000) as _,
                     bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                     containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
-                    channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT)
-                        as _, // TODO
+                    channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT) as _, // TODO
                     endianness: sles::SL_BYTEORDER_LITTLEENDIAN as _, // TODO
                 };
 
@@ -204,7 +205,7 @@ impl api::Instance for Instance {
                 format: desc.sample_desc.format,
                 channels: channels.output,
                 sample_rate: desc.sample_desc.sample_rate,
-            }
+            },
         })
     }
 
@@ -234,7 +235,10 @@ impl api::Device for Device {
     }
 
     unsafe fn start(&self) {
-        log::warn!("start {}", ((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _));
+        log::warn!(
+            "start {}",
+            ((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _)
+        );
     }
 
     unsafe fn stop(&self) {
@@ -259,12 +263,14 @@ impl api::Stream for Stream {
     }
 
     unsafe fn set_callback(&mut self, callback: api::StreamCallback) -> Result<()> {
-        let buffers = (0..BUFFER_CHAIN_SIZE).map(|_| {
-            let buffer_size = self.frame_desc.channels * BUFFER_NUM_FRAMES;
-            let mut buffer = Vec::<u32>::with_capacity(buffer_size);
-            buffer.set_len(buffer_size);
-            buffer
-        }).collect();
+        let buffers = (0..BUFFER_CHAIN_SIZE)
+            .map(|_| {
+                let buffer_size = self.frame_desc.channels * BUFFER_NUM_FRAMES;
+                let mut buffer = Vec::<u32>::with_capacity(buffer_size);
+                buffer.set_len(buffer_size);
+                buffer
+            })
+            .collect();
 
         let data = Box::new(CallbackData {
             buffers,

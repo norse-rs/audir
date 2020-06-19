@@ -171,11 +171,7 @@ pub trait Instance {
         sharing: SharingMode,
     ) -> Result<FrameDesc>;
 
-    unsafe fn create_device(
-        &self,
-        desc: DeviceDesc,
-        channels: Channels,
-    ) -> Result<Self::Device>;
+    unsafe fn create_device(&self, desc: DeviceDesc, channels: Channels) -> Result<Self::Device>;
 
     unsafe fn destroy_device(&self, device: &mut Self::Device);
 

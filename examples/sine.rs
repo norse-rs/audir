@@ -70,10 +70,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         loop {
             let audir::StreamBuffers { output, frames, .. } = stream.acquire_buffers(!0)?;
-            let buffer = std::slice::from_raw_parts_mut(
-                output as *mut f32,
-                frames as usize * num_channels,
-            );
+            let buffer =
+                std::slice::from_raw_parts_mut(output as *mut f32, frames as usize * num_channels);
 
             for dt in 0..frames {
                 let phase = 2.0 * std::f32::consts::PI * cycle;

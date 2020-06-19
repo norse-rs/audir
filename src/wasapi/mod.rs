@@ -82,7 +82,8 @@ unsafe impl IMMNotificationClient for NotificationClient {
     }
 
     unsafe fn on_device_removed(&self, pwstrDeviceId: LPCWSTR) -> HRESULT {
-        let _ = self.tx
+        let _ = self
+            .tx
             .send(Event::Removed(string_from_wstr(pwstrDeviceId)));
         winerror::S_OK
     }
@@ -364,7 +365,11 @@ impl api::Instance for Instance {
         Ok(Device {
             client: physical_device.audio_client,
             fence,
-            stream: if channels.input > 0 { StreamTy::Input } else { StreamTy::Output },
+            stream: if channels.input > 0 {
+                StreamTy::Input
+            } else {
+                StreamTy::Output
+            },
         })
     }
 
@@ -644,7 +649,12 @@ impl api::Stream for Stream {
                     output: ptr::null_mut(),
                 })
             }
-            Stream::Output { device, client, buffer_size, fence } => {
+            Stream::Output {
+                device,
+                client,
+                buffer_size,
+                fence,
+            } => {
                 fence.wait(timeout_ms);
 
                 let mut data = ptr::null_mut();
@@ -663,7 +673,6 @@ impl api::Stream for Stream {
         }
     }
 
-
     unsafe fn release_buffers(&mut self, num_frames: api::Frames) -> Result<()> {
         match self {
             Stream::Input { client, .. } => {
@@ -680,4 +689,3 @@ impl api::Stream for Stream {
         Err(api::Error::Validation)
     }
 }
-
