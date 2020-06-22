@@ -362,14 +362,34 @@ impl api::Instance for Instance {
 
         physical_device.audio_client.SetEventHandle(fence.0);
 
+        let stream = if channels.input > 0 {
+            let mut capture_client = WeakPtr::<IAudioCaptureClient>::null();
+            physical_device.audio_client.GetService(
+                &IAudioCaptureClient::uuidof(),
+                capture_client.mut_void() as _,
+            );
+            Stream::Input {
+                client: capture_client,
+            }
+        } else {
+            let mut render_client = WeakPtr::<IAudioRenderClient>::null();
+            physical_device.audio_client
+                .GetService(&IAudioRenderClient::uuidof(), render_client.mut_void() as _);
+            let buffer_size = {
+                let mut size = 0;
+                physical_device.audio_client.GetBufferSize(&mut size);
+                size
+            };
+            Stream::Output {
+                client: render_client,
+                buffer_size,
+            }
+        };
+
         Ok(Device {
             client: physical_device.audio_client,
             fence,
-            stream: if channels.input > 0 {
-                StreamTy::Input
-            } else {
-                StreamTy::Output
-            },
+            stream,
         })
     }
 
@@ -504,56 +524,22 @@ impl std::ops::Drop for Instance {
     }
 }
 
-enum StreamTy {
-    Input,
-    Output,
+pub enum Stream {
+    Input {
+        client: WeakPtr<IAudioCaptureClient>,
+    },
+    Output {
+        client: WeakPtr<IAudioRenderClient>,
+        buffer_size: u32,
+    },
 }
-
 pub struct Device {
     client: WeakPtr<IAudioClient>,
     fence: Fence,
-    stream: StreamTy,
+    stream: Stream,
 }
 
 impl api::Device for Device {
-    type Stream = Stream;
-
-    unsafe fn get_stream(&self) -> Result<Stream> {
-        match self.stream {
-            StreamTy::Input => {
-                let mut capture_client = WeakPtr::<IAudioCaptureClient>::null();
-                self.client.GetService(
-                    &IAudioCaptureClient::uuidof(),
-                    capture_client.mut_void() as _,
-                );
-
-                Ok(Stream::Input {
-                    client: capture_client,
-                    fence: self.fence,
-                })
-            }
-            StreamTy::Output => {
-                let mut render_client = WeakPtr::<IAudioRenderClient>::null();
-
-                self.client
-                    .GetService(&IAudioRenderClient::uuidof(), render_client.mut_void() as _);
-
-                let buffer_size = {
-                    let mut size = 0;
-                    self.client.GetBufferSize(&mut size);
-                    size
-                };
-
-                Ok(Stream::Output {
-                    client: render_client,
-                    device: self.client,
-                    buffer_size,
-                    fence: self.fence,
-                })
-            }
-        }
-    }
-
     unsafe fn start(&self) {
         self.client.Start();
     }
@@ -561,34 +547,19 @@ impl api::Device for Device {
     unsafe fn stop(&self) {
         self.client.Stop();
     }
-}
 
-pub enum Stream {
-    Input {
-        client: WeakPtr<IAudioCaptureClient>,
-        fence: Fence,
-    },
-    Output {
-        device: WeakPtr<IAudioClient>,
-        client: WeakPtr<IAudioRenderClient>,
-        buffer_size: u32,
-        fence: Fence,
-    },
-}
-
-impl api::Stream for Stream {
-    unsafe fn properties(&self) -> api::StreamProperties {
-        match *self {
+    unsafe fn stream_properties(&self) -> api::StreamProperties {
+        match self.stream {
             Stream::Input { .. } => unimplemented!(),
-            Stream::Output { device, .. } => {
+            Stream::Output { .. } => {
                 let buffer_size = {
                     let mut size = 0;
-                    device.GetBufferSize(&mut size);
+                    self.client.GetBufferSize(&mut size);
                     size as _
                 };
 
                 let mut mix_format = ptr::null_mut();
-                device.GetMixFormat(&mut mix_format);
+                self.client.GetMixFormat(&mut mix_format);
 
                 match (*mix_format).wFormatTag {
                     WAVE_FORMAT_EXTENSIBLE => {
@@ -620,10 +591,10 @@ impl api::Stream for Stream {
     }
 
     unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<api::StreamBuffers> {
-        match self {
-            Stream::Input { client, fence } => {
-                fence.wait(timeout_ms);
+        self.fence.wait(timeout_ms);
 
+        match self.stream {
+            Stream::Input { client } => {
                 let mut len = 0;
                 client.GetNextPacketSize(&mut len);
 
@@ -650,19 +621,15 @@ impl api::Stream for Stream {
                 })
             }
             Stream::Output {
-                device,
                 client,
                 buffer_size,
-                fence,
             } => {
-                fence.wait(timeout_ms);
-
                 let mut data = ptr::null_mut();
                 let mut padding = 0;
 
-                device.GetCurrentPadding(&mut padding);
+                self.client.GetCurrentPadding(&mut padding);
 
-                let len = *buffer_size - padding;
+                let len = buffer_size - padding;
                 client.GetBuffer(len, &mut data);
                 Ok(api::StreamBuffers {
                     frames: len as _,
@@ -674,8 +641,8 @@ impl api::Stream for Stream {
     }
 
     unsafe fn release_buffers(&mut self, num_frames: api::Frames) -> Result<()> {
-        match self {
-            Stream::Input { client, .. } => {
+        match self.stream {
+            Stream::Input { client } => {
                 client.ReleaseBuffer(num_frames as _);
             }
             Stream::Output { client, .. } => {
@@ -683,9 +650,5 @@ impl api::Stream for Stream {
             }
         }
         Ok(())
-    }
-
-    unsafe fn set_callback(&mut self, _: api::StreamCallback) -> Result<()> {
-        Err(api::Error::Validation)
     }
 }

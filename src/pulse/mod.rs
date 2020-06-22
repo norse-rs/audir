@@ -233,8 +233,7 @@ impl api::Instance for Instance {
     ) -> Result<Self::Device> {
         let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
 
-        let input_stream = ptr::null_mut(); // TODO
-        let output_stream = if channels.output > 0 {
+        let stream = if channels.output > 0 {
             let spec = pulse::pa_sample_spec {
                 format: map_format(desc.sample_desc.format),
                 channels: channels.output as _,
@@ -276,13 +275,17 @@ impl api::Instance for Instance {
 
             stream
         } else {
-            ptr::null_mut()
+            todo!()
         };
+
+        let sample_spec = &*pulse::pa_stream_get_sample_spec(stream);
+        let frame_size = pulse::pa_frame_size(sample_spec);
 
         Ok(Device {
             mainloop: self.mainloop,
-            input_stream,
-            output_stream,
+            stream,
+            cur_buffer: ptr::null_mut(),
+            frame_size,
         })
     }
 
@@ -315,30 +318,14 @@ impl Instance {
 }
 
 pub struct Device {
-    pub mainloop: *mut pulse::pa_mainloop,
-    pub input_stream: *mut pulse::pa_stream,
-    pub output_stream: *mut pulse::pa_stream,
+    mainloop: *mut pulse::pa_mainloop,
+    stream: *mut pulse::pa_stream,
+    cur_buffer: *mut c_void,
+    frame_size: usize,
 }
 
 impl api::Device for Device {
     type Stream = Stream;
-
-    unsafe fn get_stream(&self) -> Result<Stream> {
-        let stream = self.output_stream;
-        if stream.is_null() {
-            return Err(api::Error::Validation);
-        }
-
-        let sample_spec = &*pulse::pa_stream_get_sample_spec(stream);
-        let frame_size = pulse::pa_frame_size(sample_spec);
-
-        Ok(Stream {
-            mainloop: self.mainloop,
-            stream,
-            cur_buffer: ptr::null_mut(),
-            frame_size,
-        })
-    }
 
     unsafe fn start(&self) {
         println!("Device::start unimplemented");
@@ -347,17 +334,8 @@ impl api::Device for Device {
     unsafe fn stop(&self) {
         println!("Device::stop unimplemented");
     }
-}
 
-pub struct Stream {
-    mainloop: *mut pulse::pa_mainloop,
-    stream: *mut pulse::pa_stream,
-    cur_buffer: *mut c_void,
-    frame_size: usize,
-}
-
-impl api::Stream for Stream {
-    unsafe fn properties(&self) -> api::StreamProperties {
+    unsafe fn stream_properties(&self) -> api::StreamProperties {
         let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(self.stream);
         dbg!((
             buffer_attrs.minreq,
@@ -372,10 +350,6 @@ impl api::Stream for Stream {
             sample_rate: sample_spec.rate as _,
             buffer_size: buffer_attrs.minreq as _,
         }
-    }
-
-    unsafe fn set_callback(&mut self, _: api::StreamCallback) -> Result<()> {
-        Err(api::Error::Validation)
     }
 
     unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<api::StreamBuffers> {

@@ -27,3 +27,4 @@ coreaudio-sys = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 audir-sles = "0.1"
+audir-aaudio = { path = "../audir-aaudio" }

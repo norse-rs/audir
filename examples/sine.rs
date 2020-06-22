@@ -1,16 +1,17 @@
-use audir::{Device, Instance, Stream};
+#[cfg(target_os = "android")]
+use audir::opensles::Instance;
+#[cfg(target_os = "linux")]
+use audir::pulse::Instance;
+#[cfg(windows)]
+use audir::wasapi::Instance;
+
+use audir::{Device, Instance as InstanceTrait};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     unsafe {
-        #[cfg(all(windows, not(feature = "asio")))]
-        let instance = audir::wasapi::Instance::create("audir - sine");
-        #[cfg(feature = "asio")]
-        let instance = audir::asio::Instance::create("audir - sine");
-        #[cfg(target_os = "linux")]
-        let instance = audir::pulse::Instance::create("audir - sine");
-        #[cfg(target_os = "android")]
-        let instance = audir::opensles::Instance::create("audir - sine");
+        let instance_properties = Instance::properties();
+        let instance = Instance::create("audir - sine");
 
         let physical_devices = instance.enumerate_physical_devices();
 
@@ -42,7 +43,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             instance.physical_device_properties(output_device)?
         );
 
-        let device = instance.create_device(
+        let mut device = instance.create_device(
             audir::DeviceDesc {
                 physical_device: output_device,
                 sharing: audir::SharingMode::Concurrent,
@@ -57,8 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
         )?;
 
-        let mut stream = device.get_stream()?;
-        let properties = stream.properties();
+        let properties = device.stream_properties();
 
         let frequency = 440.0;
         let sample_rate = properties.sample_rate as f32;
@@ -68,8 +68,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         device.start();
 
-        loop {
-            let audir::StreamBuffers { output, frames, .. } = stream.acquire_buffers(!0)?;
+        let mut callback = move |buffers| {
+            let audir::StreamBuffers { output, frames, .. } = buffers;
             let buffer =
                 std::slice::from_raw_parts_mut(output as *mut f32, frames as usize * num_channels);
 
@@ -82,8 +82,22 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                 cycle = (cycle + cycle_step) % 1.0;
             }
+        };
 
-            stream.release_buffers(frames)?;
+        match instance_properties.stream_mode {
+            audir::StreamMode::Callback => {
+                device.set_callback(Box::new(callback))?;
+                device.start();
+                loop {}
+            }
+            audir::StreamMode::Polling => {
+                device.start();
+                loop {
+                    let buffers = device.acquire_buffers(!0)?;
+                    callback(buffers);
+                    device.release_buffers(buffers.frames)?;
+                }
+            }
         }
     }
 }

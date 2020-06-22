@@ -5,7 +5,7 @@ use audir::pulse::Instance;
 #[cfg(windows)]
 use audir::wasapi::Instance;
 
-use audir::{Device, Instance as InstanceTrait, Stream};
+use audir::{Device, Instance as InstanceTrait};
 
 #[cfg(target_os = "android")]
 use std::path::Path;
@@ -54,6 +54,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let instance_properties = Instance::properties();
         let instance = Instance::create("audir-music");
 
+        instance.enumerate_physical_devices();
+
         let output_device = match instance.default_physical_output_device() {
             Some(device) => device,
             None => instance
@@ -69,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap(),
         };
 
-        let device = instance.create_device(
+        let mut device = instance.create_device(
             audir::DeviceDesc {
                 physical_device: output_device,
                 sharing: audir::SharingMode::Concurrent,
@@ -84,9 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         )?;
 
-        let mut stream = device.get_stream()?;
-
-        let properties = stream.properties();
+        let properties = device.stream_properties();
         let num_channels = properties.num_channels;
 
         let mut sample = 0;
@@ -106,18 +106,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match instance_properties.stream_mode {
             audir::StreamMode::Callback => {
-                stream.set_callback(Box::new(callback))?;
+                device.set_callback(Box::new(callback))?;
                 device.start();
                 loop {}
             }
             audir::StreamMode::Polling => {
                 device.start();
                 loop {
-                    let buffers = stream.acquire_buffers(!0)?;
+                    let buffers = device.acquire_buffers(!0)?;
                     callback(buffers);
-                    stream.release_buffers(buffers.frames)?;
+                    device.release_buffers(buffers.frames)?;
                 }
             }
         }
     }
+
+    Ok(())
 }

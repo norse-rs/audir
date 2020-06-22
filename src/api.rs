@@ -116,9 +116,6 @@ impl fmt::Display for Error {
 pub enum Event {}
 
 #[derive(Debug, Clone)]
-pub struct StreamDesc {}
-
-#[derive(Debug, Clone)]
 pub struct DeviceDesc {
     pub physical_device: PhysicalDevice,
     pub sharing: SharingMode,
@@ -180,17 +177,18 @@ pub trait Instance {
         F: FnMut(Event);
 }
 
-pub trait Stream {
-    unsafe fn properties(&self) -> StreamProperties;
-    unsafe fn set_callback(&mut self, callback: StreamCallback) -> Result<()>;
-    unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<StreamBuffers>;
-    unsafe fn release_buffers(&mut self, num_frames: Frames) -> Result<()>;
-}
-
 pub trait Device {
-    type Stream: Stream;
-    unsafe fn get_stream(&self) -> Result<Self::Stream>;
-
     unsafe fn start(&self);
     unsafe fn stop(&self);
+
+    unsafe fn stream_properties(&self) -> StreamProperties;
+    unsafe fn set_callback(&mut self, _callback: StreamCallback) -> Result<()> {
+        Err(Error::Validation)
+    }
+    unsafe fn acquire_buffers(&mut self, _timeout_ms: u32) -> Result<StreamBuffers> {
+        Err(Error::Validation)
+    }
+    unsafe fn release_buffers(&mut self, _num_frames: Frames) -> Result<()> {
+        Err(Error::Validation)
+    }
 }
