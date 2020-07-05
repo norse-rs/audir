@@ -227,11 +227,11 @@ pub struct Device {
 impl api::Device for Device {
 
     unsafe fn start(&self) {
-        ((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _);
+        dbg!(((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _));
     }
 
     unsafe fn stop(&self) {
-        unimplemented!()
+        dbg!(((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_STOPPED as _));
     }
 
     unsafe fn stream_properties(&self) -> api::StreamProperties {
@@ -279,7 +279,7 @@ impl api::Device for Device {
             }
         }
 
-        (**self.queue).RegisterCallback.unwrap()(self.queue, Some(write_cb), data as _);
+        dbg!("{:?}", (**self.queue).RegisterCallback.unwrap()(self.queue, Some(write_cb), data as _));
 
         // Enqueue one frame to get the ball rolling
         write_cb(self.queue, data as _);

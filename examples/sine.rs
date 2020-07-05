@@ -66,8 +66,6 @@ fn run() -> Result<(), Box<dyn Error>> {
         let cycle_step = frequency / sample_rate;
         let mut cycle = 0.0;
 
-        device.start();
-
         let mut callback = move |buffers| {
             let audir::StreamBuffers { output, frames, .. } = buffers;
             let buffer =
@@ -86,6 +84,7 @@ fn run() -> Result<(), Box<dyn Error>> {
 
         match instance_properties.stream_mode {
             audir::StreamMode::Callback => {
+                device.stop();
                 device.set_callback(Box::new(callback))?;
                 device.start();
                 loop {}
