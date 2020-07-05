@@ -12,25 +12,23 @@ use std::path::Path;
 
 #[cfg(target_os = "android")]
 pub fn load<P: AsRef<Path>>(path: P) -> Vec<u8> {
-    use android_glue;
+    use ndk::asset::AssetManager;
+    use std::ffi::CString;
+    use std::io::Read;
 
     let filename = path.as_ref().to_str().expect("Can`t convert Path to &str");
-    match android_glue::load_asset(filename) {
-        Ok(buf) => buf,
-        Err(_) => panic!("Can`t load asset '{}'", filename),
-    }
+    let native_activity = ndk_glue::native_activity();
+    let asset_manager = native_activity.asset_manager();
+    let mut asset = asset_manager
+        .open(&CString::new(filename).unwrap())
+        .expect("Could not open asset");
+
+    let mut data = vec![];
+    asset.read_to_end(&mut data);
+    data
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(target_os = "android")]
-    {
-        android_logger::init_once(
-            android_logger::Config::default()
-                .with_min_level(log::Level::Trace) // limit log level
-                .with_tag("audir-music"), // logs will show under mytag tag
-        );
-    }
-
+fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "android"))]
     let mut audio_stream = {
         let file_path = std::env::args()
@@ -122,4 +120,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg_attr(target_os = "android", ndk_glue::main(backtrace))]
+fn main_run() {
+    run().unwrap()
+}
+
+fn main() {
+    main_run();
 }

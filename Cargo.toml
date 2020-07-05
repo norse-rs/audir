@@ -11,6 +11,14 @@ members = [
     "examples/music"
 ]
 
+[[example]]
+name = "aaudio"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "sine"
+crate-type = ["cdylib"]
+
 [dependencies]
 bitflags = "1"
 log = "0.4"
@@ -27,4 +35,8 @@ coreaudio-sys = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 audir-sles = "0.1"
-audir-aaudio = { path = "../audir-aaudio" }
+ndk = { path = "../android-ndk-rs/ndk" }
+ndk-sys = { path = "../android-ndk-rs/ndk-sys" }
+ndk-glue = { path = "../android-ndk-rs/ndk-glue" }
+jni = "0.16"
+# audir-aaudio = { path = "../audir-aaudio" }

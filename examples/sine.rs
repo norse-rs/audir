@@ -8,7 +8,7 @@ use audir::wasapi::Instance;
 use audir::{Device, Instance as InstanceTrait};
 use std::error::Error;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn run() -> Result<(), Box<dyn Error>> {
     unsafe {
         let instance_properties = Instance::properties();
         let instance = Instance::create("audir - sine");
@@ -100,4 +100,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
+}
+
+#[cfg_attr(target_os = "android", ndk_glue::main(backtrace))]
+fn main() {
+    run().unwrap()
 }

@@ -373,7 +373,8 @@ impl api::Instance for Instance {
             }
         } else {
             let mut render_client = WeakPtr::<IAudioRenderClient>::null();
-            physical_device.audio_client
+            physical_device
+                .audio_client
                 .GetService(&IAudioRenderClient::uuidof(), render_client.mut_void() as _);
             let buffer_size = {
                 let mut size = 0;

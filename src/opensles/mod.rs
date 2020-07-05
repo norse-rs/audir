@@ -135,7 +135,7 @@ impl api::Instance for Instance {
             };
             let ids = [sles::SL_IID_BUFFERQUEUE];
             let requirements = [sles::SL_BOOLEAN_TRUE];
-            log::warn!(
+            println!(
                 "{}",
                 ((**self.engine).CreateAudioPlayer).unwrap()(
                     self.engine,
@@ -225,35 +225,16 @@ pub struct Device {
 }
 
 impl api::Device for Device {
-    type Stream = Stream;
-
-    unsafe fn get_stream(&self) -> Result<Self::Stream> {
-        Ok(Stream {
-            queue: self.queue,
-            frame_desc: self.frame_desc,
-        })
-    }
 
     unsafe fn start(&self) {
-        log::warn!(
-            "start {}",
-            ((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _)
-        );
+        ((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _);
     }
 
     unsafe fn stop(&self) {
         unimplemented!()
     }
-}
 
-#[derive(Copy, Clone)]
-pub struct Stream {
-    queue: sles::SLAndroidSimpleBufferQueueItf,
-    frame_desc: api::FrameDesc,
-}
-
-impl api::Stream for Stream {
-    unsafe fn properties(&self) -> api::StreamProperties {
+    unsafe fn stream_properties(&self) -> api::StreamProperties {
         api::StreamProperties {
             num_channels: self.frame_desc.channels,
             channel_mask: api::ChannelMask::empty(), // TODO
@@ -306,11 +287,10 @@ impl api::Stream for Stream {
         Ok(())
     }
 
-    unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<api::StreamBuffers> {
+    unsafe fn acquire_buffers(&mut self, _timeout_ms: u32) -> Result<api::StreamBuffers> {
         Err(api::Error::Validation)
     }
-
-    unsafe fn release_buffers(&mut self, num_frames: api::Frames) -> Result<()> {
+    unsafe fn release_buffers(&mut self, _num_frames: api::Frames) -> Result<()> {
         Err(api::Error::Validation)
     }
 }
