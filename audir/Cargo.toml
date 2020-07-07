@@ -7,14 +7,6 @@ workspace = ".."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[[example]]
-name = "aaudio"
-crate-type = ["cdylib"]
-
-[[example]]
-name = "sine"
-crate-type = ["cdylib"]
-
 [dependencies]
 bitflags = "1"
 log = "0.4"

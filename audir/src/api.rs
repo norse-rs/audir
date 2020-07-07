@@ -76,8 +76,14 @@ pub struct SampleDesc {
 #[derive(Debug, Copy, Clone)]
 pub struct FrameDesc {
     pub format: Format,
-    pub channels: usize,
+    pub channels: ChannelMask,
     pub sample_rate: usize,
+}
+
+impl FrameDesc {
+    pub fn num_channels(&self) -> usize {
+        self.channels.bits().count_ones() as _
+    }
 }
 
 pub struct InstanceProperties {
@@ -88,10 +94,15 @@ pub struct InstanceProperties {
 
 #[derive(Debug, Clone)]
 pub struct StreamProperties {
-    pub num_channels: usize,
-    pub channel_mask: ChannelMask,
+    pub channels: ChannelMask,
     pub sample_rate: usize,
     pub buffer_size: Frames,
+}
+
+impl StreamProperties {
+    pub fn num_channels(&self) -> usize {
+        self.channels.bits().count_ones() as _
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -125,8 +136,8 @@ pub struct DeviceDesc {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Channels {
-    pub input: usize,
-    pub output: usize,
+    pub input: ChannelMask,
+    pub output: ChannelMask,
 }
 
 pub type Result<T> = result::Result<T, Error>;

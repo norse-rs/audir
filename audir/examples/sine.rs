@@ -51,8 +51,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 },
             },
             audir::Channels {
-                input: 0,
-                output: 2,
+                input: audir::ChannelMask::empty(),
+                output: audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT,
             },
         )?;
 
@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let frequency = 440.0;
         let sample_rate = properties.sample_rate as f32;
-        let num_channels = properties.num_channels;
+        let num_channels = properties.num_channels();
         let cycle_step = frequency / sample_rate;
         let mut cycle = 0.0;
 

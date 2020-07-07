@@ -78,13 +78,13 @@ fn run_impl() -> Result<(), Box<dyn std::error::Error>> {
                 },
             },
             audir::Channels {
-                input: 0,
-                output: 2,
+                input: audir::ChannelMask::empty(),
+                output: audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT,
             },
         )?;
 
         let properties = device.stream_properties();
-        let num_channels = properties.num_channels;
+        let num_channels = properties.num_channels();
 
         let mut sample = 0;
         let mut callback = move |buffers: audir::StreamBuffers| {

@@ -124,14 +124,15 @@ fn map_frame_desc(frame_desc: &api::FrameDesc) -> Option<WAVEFORMATEXTENSIBLE> {
         _ => unimplemented!(),
     };
 
+    let num_channels = frame_desc.num_channels();
     let bits_per_sample = 8 * bytes_per_sample;
 
     let format = WAVEFORMATEX {
         wFormatTag: format_tag,
-        nChannels: frame_desc.channels as _,
+        nChannels: num_channels as _,
         nSamplesPerSec: frame_desc.sample_rate as _,
-        nAvgBytesPerSec: (frame_desc.channels * frame_desc.sample_rate * bytes_per_sample) as _,
-        nBlockAlign: (frame_desc.channels * bytes_per_sample) as _,
+        nAvgBytesPerSec: (num_channels * frame_desc.sample_rate * bytes_per_sample) as _,
+        nBlockAlign: (num_channels * bytes_per_sample) as _,
         wBitsPerSample: bits_per_sample as _,
         cbSize: (mem::size_of::<WAVEFORMATEXTENSIBLE>() - mem::size_of::<WAVEFORMATEX>()) as _,
     };
@@ -158,9 +159,20 @@ unsafe fn map_waveformat(format: *const WAVEFORMATEX) -> Result<api::FrameDesc> 
                     return Err(api::Error::Validation); // TODO
                 };
 
+            let mut channels = api::ChannelMask::empty();
+            if wave_format_ex.dwChannelMask & SPEAKER_FRONT_LEFT != 0 {
+                channels |= api::ChannelMask::FRONT_LEFT;
+            }
+            if wave_format_ex.dwChannelMask & SPEAKER_FRONT_RIGHT != 0 {
+                channels |= api::ChannelMask::FRONT_RIGHT;
+            }
+            if wave_format_ex.dwChannelMask & SPEAKER_FRONT_CENTER != 0 {
+                channels |= api::ChannelMask::FRONT_CENTER;
+            }
+
             Ok(api::FrameDesc {
                 format,
-                channels: wave_format.nChannels as _,
+                channels,
                 sample_rate: wave_format.nSamplesPerSec as _,
             })
         }
@@ -298,12 +310,12 @@ impl api::Instance for Instance {
             .OpenPropertyStore(STGM_READ, store.mut_void() as *mut _);
 
         let device_name = {
-            let mut value = mem::uninitialized();
+            let mut value = mem::MaybeUninit::uninit();
             store.GetValue(
                 &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-                &mut value,
+                value.as_mut_ptr(),
             );
-            let os_str = *value.data.pwszVal();
+            let os_str = *value.assume_init().data.pwszVal();
             string_from_wstr(os_str)
         };
 
@@ -336,7 +348,8 @@ impl api::Instance for Instance {
         desc: api::DeviceDesc,
         channels: api::Channels,
     ) -> Result<Device> {
-        if channels.input != 0 && channels.output != 0 {
+        if !channels.input.is_empty() && !channels.output.is_empty() {
+            // no duplex
             return Err(api::Error::Validation);
         }
 
@@ -347,7 +360,7 @@ impl api::Instance for Instance {
 
         let frame_desc = api::FrameDesc {
             format: desc.sample_desc.format,
-            channels: channels.input.max(channels.output),
+            channels: if !channels.input.is_empty() { channels.input } else { channels.output },
             sample_rate: desc.sample_desc.sample_rate,
         };
         let mix_format = map_frame_desc(&frame_desc).unwrap(); // todo
@@ -362,7 +375,7 @@ impl api::Instance for Instance {
 
         physical_device.audio_client.SetEventHandle(fence.0);
 
-        let stream = if channels.input > 0 {
+        let stream = if !channels.input.is_empty() {
             let mut capture_client = WeakPtr::<IAudioCaptureClient>::null();
             physical_device.audio_client.GetService(
                 &IAudioCaptureClient::uuidof(),
@@ -562,30 +575,11 @@ impl api::Device for Device {
                 let mut mix_format = ptr::null_mut();
                 self.client.GetMixFormat(&mut mix_format);
 
-                match (*mix_format).wFormatTag {
-                    WAVE_FORMAT_EXTENSIBLE => {
-                        let format = &*(mix_format as *const WAVEFORMATEXTENSIBLE);
-
-                        let mut channel_mask = api::ChannelMask::empty();
-                        if format.dwChannelMask & SPEAKER_FRONT_LEFT != 0 {
-                            channel_mask |= api::ChannelMask::FRONT_LEFT;
-                        }
-                        if format.dwChannelMask & SPEAKER_FRONT_RIGHT != 0 {
-                            channel_mask |= api::ChannelMask::FRONT_RIGHT;
-                        }
-                        if format.dwChannelMask & SPEAKER_FRONT_CENTER != 0 {
-                            channel_mask |= api::ChannelMask::FRONT_CENTER;
-                        }
-                        // TODO: more channels
-
-                        api::StreamProperties {
-                            num_channels: format.Format.nChannels as _,
-                            channel_mask,
-                            sample_rate: format.Format.nSamplesPerSec as _,
-                            buffer_size,
-                        }
-                    }
-                    _ => unimplemented!(),
+                let frame_desc = map_waveformat(mix_format).unwrap();
+                api::StreamProperties {
+                    channels: frame_desc.channels,
+                    sample_rate: frame_desc.sample_rate,
+                    buffer_size,
                 }
             }
         }
