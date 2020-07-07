@@ -66,16 +66,16 @@ impl api::Instance for Instance {
 
     unsafe fn physical_device_default_input_format(
         &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
+        _physical_device: api::PhysicalDevice,
+        _sharing: api::SharingMode,
     ) -> Result<api::FrameDesc> {
         unimplemented!()
     }
 
     unsafe fn physical_device_default_output_format(
         &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
+        _physical_device: api::PhysicalDevice,
+        _sharing: api::SharingMode,
     ) -> Result<api::FrameDesc> {
         unimplemented!()
     }

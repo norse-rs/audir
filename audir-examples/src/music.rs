@@ -12,7 +12,6 @@ use std::path::Path;
 
 #[cfg(target_os = "android")]
 pub fn load<P: AsRef<Path>>(path: P) -> Vec<u8> {
-    use ndk::asset::AssetManager;
     use std::ffi::CString;
     use std::io::Read;
 
@@ -24,11 +23,11 @@ pub fn load<P: AsRef<Path>>(path: P) -> Vec<u8> {
         .expect("Could not open asset");
 
     let mut data = vec![];
-    asset.read_to_end(&mut data);
+    asset.read_to_end(&mut data).unwrap();
     data
 }
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
+fn run_impl() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "android"))]
     let mut audio_stream = {
         let file_path = std::env::args()
@@ -118,15 +117,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-
-    Ok(())
 }
 
 #[cfg_attr(target_os = "android", ndk_glue::main(backtrace))]
-fn main_run() {
-    run().unwrap()
-}
-
-fn main() {
-    main_run();
+pub fn run() {
+    run_impl().unwrap()
 }

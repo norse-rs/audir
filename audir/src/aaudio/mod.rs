@@ -15,7 +15,7 @@ impl api::Instance for Instance {
     }
 
     unsafe fn enumerate_physical_devices(&self) -> Vec<api::PhysicalDevice> {
-
+        todo!()
     }
 
     unsafe fn default_physical_input_device(&self) -> Option<api::PhysicalDevice> { todo!() }
@@ -51,18 +51,17 @@ impl api::Instance for Instance {
 pub struct Device { }
 
 impl api::Device for Device {
-    type Stream = Stream;
-    unsafe fn get_stream(&self) -> Result<Stream> { todo!() }
-
     unsafe fn start(&self) { todo!() }
     unsafe fn stop(&self) { todo!() }
-}
 
-pub struct Stream { }
-
-impl api::Stream for Stream {
-    unsafe fn properties(&self) -> api::StreamProperties { todo!() }
-    unsafe fn set_callback(&mut self, callback: api::StreamCallback) -> Result<()> { todo!() }
-    unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<api::StreamBuffers> { todo!() }
-    unsafe fn release_buffers(&mut self, num_frames: api::Frames) -> Result<()> { todo!() }
+    unsafe fn stream_properties(&self) -> api::StreamProperties { todo!() }
+    unsafe fn set_callback(&mut self, _callback: api::StreamCallback) -> Result<()> {
+        todo!()
+    }
+    unsafe fn acquire_buffers(&mut self, _timeout_ms: u32) -> Result<api::StreamBuffers> {
+        todo!()
+    }
+    unsafe fn release_buffers(&mut self, _num_frames: api::Frames) -> Result<()> {
+        todo!()
+    }
 }

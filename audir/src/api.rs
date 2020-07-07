@@ -11,6 +11,7 @@ pub enum DriverId {
     OpenSLES,
     CoreAudio,
     WebAudio,
+    AAudio,
 }
 
 bitflags::bitflags! {

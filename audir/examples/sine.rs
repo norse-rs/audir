@@ -1,5 +1,3 @@
-#[cfg(target_os = "android")]
-use audir::opensles::Instance;
 #[cfg(target_os = "linux")]
 use audir::pulse::Instance;
 #[cfg(windows)]
@@ -8,7 +6,7 @@ use audir::wasapi::Instance;
 use audir::{Device, Instance as InstanceTrait};
 use std::error::Error;
 
-fn run() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     unsafe {
         let instance_properties = Instance::properties();
         let instance = Instance::create("audir - sine");
@@ -84,7 +82,6 @@ fn run() -> Result<(), Box<dyn Error>> {
 
         match instance_properties.stream_mode {
             audir::StreamMode::Callback => {
-                device.stop();
                 device.set_callback(Box::new(callback))?;
                 device.start();
                 loop {}
@@ -99,9 +96,4 @@ fn run() -> Result<(), Box<dyn Error>> {
             }
         }
     }
-}
-
-#[cfg_attr(target_os = "android", ndk_glue::main(backtrace))]
-fn main() {
-    run().unwrap()
 }
