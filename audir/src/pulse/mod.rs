@@ -10,6 +10,7 @@ pub struct PhysicalDevice {
     dev: *const i8,
     streams: api::StreamFlags,
     sample_spec: pulse::pa_sample_spec,
+    channels: api::ChannelMask,
 }
 
 type PhysialDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
@@ -28,10 +29,22 @@ impl PhysicalDevice {
 
         Ok(api::FrameDesc {
             format,
-            channels: self.sample_spec.channels as _,
+            channels: self.channels,
             sample_rate: self.sample_spec.rate as _,
         })
     }
+}
+
+fn map_channels(channel_map: &pulse::pa_channel_map) -> api::ChannelMask {
+    let mut channels = api::ChannelMask::empty();
+    for i in 0..channel_map.channels {
+        channels |= match channel_map.map[i as usize] {
+            pulse::PA_CHANNEL_POSITION_FRONT_LEFT => api::ChannelMask::FRONT_LEFT,
+            pulse::PA_CHANNEL_POSITION_FRONT_RIGHT => api::ChannelMask::FRONT_RIGHT,
+            pos => panic!("unsupported {:?}", pos),
+        };
+    }
+    channels
 }
 
 extern "C" fn sink_info_cb(
@@ -66,6 +79,7 @@ extern "C" fn sink_info_cb(
                 dev: info.name,
                 streams: api::StreamFlags::OUTPUT,
                 sample_spec: info.sample_spec,
+                channels: map_channels(&info.channel_map),
             })
         });
 }
@@ -106,6 +120,7 @@ extern "C" fn source_info_cb(
                 dev: info.name,
                 streams: api::StreamFlags::INPUT,
                 sample_spec: info.sample_spec,
+                channels: map_channels(&info.channel_map),
             })
         });
 }
@@ -233,10 +248,10 @@ impl api::Instance for Instance {
     ) -> Result<Self::Device> {
         let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
 
-        let stream = if channels.output > 0 {
+        let stream = if !channels.output.is_empty() {
             let spec = pulse::pa_sample_spec {
                 format: map_format(desc.sample_desc.format),
-                channels: channels.output as _,
+                channels: channels.output.bits().count_ones() as _,
                 rate: desc.sample_desc.sample_rate as _,
             };
 
@@ -325,8 +340,6 @@ pub struct Device {
 }
 
 impl api::Device for Device {
-    type Stream = Stream;
-
     unsafe fn start(&self) {
         println!("Device::start unimplemented");
     }
@@ -343,10 +356,10 @@ impl api::Device for Device {
             buffer_attrs.tlength
         ));
         let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
+        let channel_map = &*pulse::pa_stream_get_channel_map(self.stream);
 
         api::StreamProperties {
-            num_channels: sample_spec.channels as _,
-            channel_mask: api::ChannelMask::empty(), // TODO
+            channels: map_channels(channel_map),
             sample_rate: sample_spec.rate as _,
             buffer_size: buffer_attrs.minreq as _,
         }

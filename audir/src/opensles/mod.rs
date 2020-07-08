@@ -8,6 +8,17 @@ const BUFFER_CHAIN_SIZE: usize = 3; // TOdo
 
 const DEFAULT_PHYSICAL_DEVICE: api::PhysicalDevice = 0;
 
+fn map_channel_mask(mask: api::ChannelMask) -> sles::SLuint32 {
+    let mut channels = 0;
+    if mask.contains(api::ChannelMask::FRONT_LEFT) {
+        channels |= sles::SL_SPEAKER_FRONT_LEFT;
+    }
+    if mask.contains(api::ChannelMask::FRONT_RIGHT) {
+        channels |= sles::SL_SPEAKER_FRONT_RIGHT;
+    }
+    channels
+}
+
 struct CallbackData {
     buffers: Vec<Vec<u32>>,
     cur_buffer: usize,
@@ -149,15 +160,17 @@ impl api::Instance for Instance {
             );
         };
 
+        let sles_channels = map_channel_mask(channels.output);
+
         match desc.sample_desc.format {
             api::Format::F32 => {
                 let mut format_source = sles::SLAndroidDataFormat_PCM_EX {
                     formatType: sles::SL_ANDROID_DATAFORMAT_PCM_EX as _,
-                    numChannels: channels.output as _,
+                    numChannels: sles_channels.count_ones() as _,
                     sampleRate: (desc.sample_desc.sample_rate * 1000) as _,
                     bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                     containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
-                    channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT) as _, // TODO
+                    channelMask: sles_channels,
                     endianness: sles::SL_BYTEORDER_LITTLEENDIAN as _, // TODO
                     representation: sles::SL_ANDROID_PCM_REPRESENTATION_FLOAT as _,
                 };
@@ -167,11 +180,11 @@ impl api::Instance for Instance {
             api::Format::U32 => {
                 let mut format_source = sles::SLDataFormat_PCM {
                     formatType: sles::SL_DATAFORMAT_PCM as _,
-                    numChannels: channels.output as _,
+                    numChannels: sles_channels.count_ones() as _,
                     samplesPerSec: (desc.sample_desc.sample_rate * 1000) as _,
                     bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                     containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
-                    channelMask: (sles::SL_SPEAKER_FRONT_LEFT | sles::SL_SPEAKER_FRONT_RIGHT) as _, // TODO
+                    channelMask: sles_channels,
                     endianness: sles::SL_BYTEORDER_LITTLEENDIAN as _, // TODO
                 };
 
@@ -225,7 +238,6 @@ pub struct Device {
 }
 
 impl api::Device for Device {
-
     unsafe fn start(&self) {
         dbg!(((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _));
     }
@@ -236,8 +248,7 @@ impl api::Device for Device {
 
     unsafe fn stream_properties(&self) -> api::StreamProperties {
         api::StreamProperties {
-            num_channels: self.frame_desc.channels,
-            channel_mask: api::ChannelMask::empty(), // TODO
+            channels: self.frame_desc.channels,
             sample_rate: self.frame_desc.sample_rate,
             buffer_size: BUFFER_NUM_FRAMES,
         }
@@ -246,7 +257,7 @@ impl api::Device for Device {
     unsafe fn set_callback(&mut self, callback: api::StreamCallback) -> Result<()> {
         let buffers = (0..BUFFER_CHAIN_SIZE)
             .map(|_| {
-                let buffer_size = self.frame_desc.channels * BUFFER_NUM_FRAMES;
+                let buffer_size = self.frame_desc.channels.bits().count_ones() as usize * BUFFER_NUM_FRAMES;
                 let mut buffer = Vec::<u32>::with_capacity(buffer_size);
                 buffer.set_len(buffer_size);
                 buffer
