@@ -7,6 +7,11 @@ workspace = ".."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[example]]
+name = "aaudio"
+src = "examples/aaudio.rs"
+crate-type = ["cdylib"]
+
 [dependencies]
 bitflags = "1"
 log = "0.4"
@@ -23,7 +28,7 @@ coreaudio-sys = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 audir-sles = "0.1"
-ndk = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "9ca9be2" }
+ndk = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "9ca9be2", features = ["aaudio"] }
 ndk-sys = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "9ca9be2" }
 ndk-glue = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "9ca9be2" }
 jni = "0.16"

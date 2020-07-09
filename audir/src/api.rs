@@ -148,10 +148,11 @@ pub struct StreamBuffers {
     pub input: *const (),
     pub output: *mut (),
 }
-pub type StreamCallback = Box<dyn FnMut(StreamBuffers) + Send>;
+pub type StreamCallback<S> = Box<dyn FnMut(&S, StreamBuffers) + Send>;
 
 pub trait Instance {
     type Device: Device;
+    type Stream: Stream;
 
     unsafe fn properties() -> InstanceProperties;
 
@@ -180,7 +181,7 @@ pub trait Instance {
         sharing: SharingMode,
     ) -> Result<FrameDesc>;
 
-    unsafe fn create_device(&self, desc: DeviceDesc, channels: Channels) -> Result<Self::Device>;
+    unsafe fn create_device(&self, desc: DeviceDesc, channels: Channels, callback: StreamCallback<Self::Stream>) -> Result<Self::Device>;
 
     unsafe fn destroy_device(&self, device: &mut Self::Device);
 
@@ -193,14 +194,11 @@ pub trait Device {
     unsafe fn start(&self);
     unsafe fn stop(&self);
 
-    unsafe fn stream_properties(&self) -> StreamProperties;
-    unsafe fn set_callback(&mut self, _callback: StreamCallback) -> Result<()> {
+    unsafe fn submit_buffers(&mut self, _timeout_ms: u32) -> Result<()> {
         Err(Error::Validation)
     }
-    unsafe fn acquire_buffers(&mut self, _timeout_ms: u32) -> Result<StreamBuffers> {
-        Err(Error::Validation)
-    }
-    unsafe fn release_buffers(&mut self, _num_frames: Frames) -> Result<()> {
-        Err(Error::Validation)
-    }
+}
+
+pub trait Stream {
+    unsafe fn properties(&self) -> StreamProperties;
 }

@@ -221,6 +221,7 @@ pub struct Instance {
 
 impl api::Instance for Instance {
     type Device = Device;
+    type Stream = Stream;
 
     unsafe fn properties() -> api::InstanceProperties {
         api::InstanceProperties {
@@ -347,6 +348,7 @@ impl api::Instance for Instance {
         &self,
         desc: api::DeviceDesc,
         channels: api::Channels,
+        callback: api::StreamCallback<Stream>,
     ) -> Result<Device> {
         if !channels.input.is_empty() && !channels.output.is_empty() {
             // no duplex
@@ -375,15 +377,18 @@ impl api::Instance for Instance {
 
         physical_device.audio_client.SetEventHandle(fence.0);
 
-        let stream = if !channels.input.is_empty() {
+        let (stream, device_stream) = if !channels.input.is_empty() {
             let mut capture_client = WeakPtr::<IAudioCaptureClient>::null();
             physical_device.audio_client.GetService(
                 &IAudioCaptureClient::uuidof(),
                 capture_client.mut_void() as _,
             );
-            Stream::Input {
+            let stream = unimplemented!();
+            let device_stream = DeviceStream::Input {
                 client: capture_client,
-            }
+            };
+
+            (stream, device_stream)
         } else {
             let mut render_client = WeakPtr::<IAudioRenderClient>::null();
             physical_device
@@ -394,15 +399,32 @@ impl api::Instance for Instance {
                 physical_device.audio_client.GetBufferSize(&mut size);
                 size
             };
-            Stream::Output {
+
+            let mut mix_format = ptr::null_mut();
+            physical_device.audio_client.GetMixFormat(&mut mix_format);
+
+            let frame_desc = map_waveformat(mix_format).unwrap();
+
+            let stream = Stream {
+                properties: api::StreamProperties {
+                    channels: frame_desc.channels,
+                    sample_rate: frame_desc.sample_rate,
+                    buffer_size: buffer_size as _,
+                },
+            };
+            let device_stream = DeviceStream::Output {
                 client: render_client,
                 buffer_size,
-            }
+            };
+
+            (stream, device_stream)
         };
 
         Ok(Device {
             client: physical_device.audio_client,
             fence,
+            device_stream,
+            callback,
             stream,
         })
     }
@@ -538,7 +560,7 @@ impl std::ops::Drop for Instance {
     }
 }
 
-pub enum Stream {
+pub enum DeviceStream {
     Input {
         client: WeakPtr<IAudioCaptureClient>,
     },
@@ -547,49 +569,24 @@ pub enum Stream {
         buffer_size: u32,
     },
 }
+
+pub struct Stream {
+    properties: api::StreamProperties,
+}
 pub struct Device {
     client: WeakPtr<IAudioClient>,
     fence: Fence,
+    device_stream: DeviceStream,
+    callback: api::StreamCallback<Stream>,
     stream: Stream,
 }
 
-impl api::Device for Device {
-    unsafe fn start(&self) {
-        self.client.Start();
-    }
-
-    unsafe fn stop(&self) {
-        self.client.Stop();
-    }
-
-    unsafe fn stream_properties(&self) -> api::StreamProperties {
-        match self.stream {
-            Stream::Input { .. } => unimplemented!(),
-            Stream::Output { .. } => {
-                let buffer_size = {
-                    let mut size = 0;
-                    self.client.GetBufferSize(&mut size);
-                    size as _
-                };
-
-                let mut mix_format = ptr::null_mut();
-                self.client.GetMixFormat(&mut mix_format);
-
-                let frame_desc = map_waveformat(mix_format).unwrap();
-                api::StreamProperties {
-                    channels: frame_desc.channels,
-                    sample_rate: frame_desc.sample_rate,
-                    buffer_size,
-                }
-            }
-        }
-    }
-
+impl Device {
     unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<api::StreamBuffers> {
         self.fence.wait(timeout_ms);
 
-        match self.stream {
-            Stream::Input { client } => {
+        match self.device_stream {
+            DeviceStream::Input { client } => {
                 let mut len = 0;
                 client.GetNextPacketSize(&mut len);
 
@@ -615,7 +612,7 @@ impl api::Device for Device {
                     output: ptr::null_mut(),
                 })
             }
-            Stream::Output {
+            DeviceStream::Output {
                 client,
                 buffer_size,
             } => {
@@ -636,14 +633,36 @@ impl api::Device for Device {
     }
 
     unsafe fn release_buffers(&mut self, num_frames: api::Frames) -> Result<()> {
-        match self.stream {
-            Stream::Input { client } => {
+        match self.device_stream {
+            DeviceStream::Input { client } => {
                 client.ReleaseBuffer(num_frames as _);
             }
-            Stream::Output { client, .. } => {
+            DeviceStream::Output { client, .. } => {
                 client.ReleaseBuffer(num_frames as _, 0);
             }
         }
         Ok(())
+    }
+}
+
+impl api::Device for Device {
+    unsafe fn start(&self) {
+        self.client.Start();
+    }
+
+    unsafe fn stop(&self) {
+        self.client.Stop();
+    }
+
+    unsafe fn submit_buffers(&mut self, timeout_ms: u32) -> Result<()> {
+        let buffers = self.acquire_buffers(timeout_ms)?;
+        (self.callback)(&self.stream, buffers);
+        self.release_buffers(buffers.frames)
+    }
+}
+
+impl api::Stream for Stream {
+    unsafe fn properties(&self) -> api::StreamProperties {
+        self.properties.clone()
     }
 }
