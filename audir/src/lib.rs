@@ -7,8 +7,8 @@ pub mod pulse;
 #[cfg(target_os = "android")]
 pub mod opensles;
 
-// #[cfg(target_os = "android")]
-// pub mod aaudio;
+#[cfg(target_os = "android")]
+pub mod aaudio;
 
 #[cfg(target_os = "macos")]
 pub mod coreaudio;
