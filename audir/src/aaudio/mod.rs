@@ -54,10 +54,6 @@ impl api::Device for Device {
     unsafe fn start(&self) { todo!() }
     unsafe fn stop(&self) { todo!() }
 
-    unsafe fn stream_properties(&self) -> api::StreamProperties { todo!() }
-    unsafe fn set_callback(&mut self, _callback: api::StreamCallback) -> Result<()> {
-        todo!()
-    }
     unsafe fn acquire_buffers(&mut self, _timeout_ms: u32) -> Result<api::StreamBuffers> {
         todo!()
     }

@@ -5,7 +5,7 @@ use audir::pulse::Instance;
 #[cfg(windows)]
 use audir::wasapi::Instance;
 
-use audir::{Device, Instance as InstanceTrait};
+use audir::{Device, Instance as InstanceTrait, Stream};
 
 #[cfg(target_os = "android")]
 use std::path::Path;
@@ -68,26 +68,11 @@ fn run_impl() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap(),
         };
 
-        let mut device = instance.create_device(
-            audir::DeviceDesc {
-                physical_device: output_device,
-                sharing: audir::SharingMode::Concurrent,
-                sample_desc: audir::SampleDesc {
-                    format: audir::Format::F32,
-                    sample_rate: 48_000,
-                },
-            },
-            audir::Channels {
-                input: audir::ChannelMask::empty(),
-                output: audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT,
-            },
-        )?;
-
-        let properties = device.stream_properties();
-        let num_channels = properties.num_channels();
-
         let mut sample = 0;
-        let mut callback = move |buffers: audir::StreamBuffers| {
+        let callback = move |stream: &<Instance as InstanceTrait>::Stream, buffers: audir::StreamBuffers| {
+            let properties = stream.properties();
+            let num_channels = properties.num_channels();
+
             let buffer = std::slice::from_raw_parts_mut(
                 buffers.output as *mut f32,
                 buffers.frames as usize * num_channels,
@@ -101,19 +86,27 @@ fn run_impl() -> Result<(), Box<dyn std::error::Error>> {
             }
         };
 
-        match instance_properties.stream_mode {
-            audir::StreamMode::Callback => {
-                device.set_callback(Box::new(callback))?;
-                device.start();
-                loop {}
-            }
-            audir::StreamMode::Polling => {
-                device.start();
-                loop {
-                    let buffers = device.acquire_buffers(!0)?;
-                    callback(buffers);
-                    device.release_buffers(buffers.frames)?;
-                }
+        let mut device = instance.create_device(
+            audir::DeviceDesc {
+                physical_device: output_device,
+                sharing: audir::SharingMode::Concurrent,
+                sample_desc: audir::SampleDesc {
+                    format: audir::Format::F32,
+                    sample_rate: 48_000,
+                },
+            },
+            audir::Channels {
+                input: audir::ChannelMask::empty(),
+                output: audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT,
+            },
+            Box::new(callback),
+        )?;
+
+        device.start();
+
+        loop {
+            if instance_properties.stream_mode == audir::StreamMode::Polling {
+                device.submit_buffers(!0)?;
             }
         }
     }

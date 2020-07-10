@@ -22,7 +22,8 @@ fn map_channel_mask(mask: api::ChannelMask) -> sles::SLuint32 {
 struct CallbackData {
     buffers: Vec<Vec<u32>>,
     cur_buffer: usize,
-    callback: api::StreamCallback,
+    callback: api::StreamCallback<Stream>,
+    stream: Stream,
 }
 
 pub struct Instance {
@@ -32,6 +33,7 @@ pub struct Instance {
 
 impl api::Instance for Instance {
     type Device = Device;
+    type Stream = Stream;
 
     unsafe fn properties() -> api::InstanceProperties {
         api::InstanceProperties {
@@ -103,7 +105,7 @@ impl api::Instance for Instance {
         })
     }
 
-    unsafe fn destroy_device(&self, device: &mut Device) {
+    unsafe fn destroy_device(&self, _device: &mut Device) {
         unimplemented!()
     }
 
@@ -111,6 +113,7 @@ impl api::Instance for Instance {
         &self,
         desc: api::DeviceDesc,
         channels: api::Channels,
+        callback: api::StreamCallback<Stream>,
     ) -> Result<Self::Device> {
         assert_eq!(desc.physical_device, DEFAULT_PHYSICAL_DEVICE);
         assert_eq!(desc.sharing, api::SharingMode::Concurrent);
@@ -161,12 +164,13 @@ impl api::Instance for Instance {
         };
 
         let sles_channels = map_channel_mask(channels.output);
+        let num_channels = sles_channels.count_ones();
 
         match desc.sample_desc.format {
             api::Format::F32 => {
                 let mut format_source = sles::SLAndroidDataFormat_PCM_EX {
                     formatType: sles::SL_ANDROID_DATAFORMAT_PCM_EX as _,
-                    numChannels: sles_channels.count_ones() as _,
+                    numChannels: num_channels as _,
                     sampleRate: (desc.sample_desc.sample_rate * 1000) as _,
                     bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                     containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
@@ -180,7 +184,7 @@ impl api::Instance for Instance {
             api::Format::U32 => {
                 let mut format_source = sles::SLDataFormat_PCM {
                     formatType: sles::SL_DATAFORMAT_PCM as _,
-                    numChannels: sles_channels.count_ones() as _,
+                    numChannels: num_channels as _,
                     samplesPerSec: (desc.sample_desc.sample_rate * 1000) as _,
                     bitsPerSample: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
                     containerSize: sles::SL_PCMSAMPLEFORMAT_FIXED_32 as _,
@@ -210,74 +214,38 @@ impl api::Instance for Instance {
             &mut state as *mut _ as _,
         );
 
-        Ok(Device {
-            engine: self.engine,
-            state,
-            queue,
-            frame_desc: api::FrameDesc {
-                format: desc.sample_desc.format,
-                channels: channels.output,
-                sample_rate: desc.sample_desc.sample_rate,
-            },
-        })
-    }
-
-    unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
-    where
-        F: FnMut(api::Event),
-    {
-        Ok(())
-    }
-}
-
-pub struct Device {
-    engine: sles::SLEngineItf,
-    state: sles::SLPlayItf,
-    queue: sles::SLAndroidSimpleBufferQueueItf,
-    frame_desc: api::FrameDesc,
-}
-
-impl api::Device for Device {
-    unsafe fn start(&self) {
-        dbg!(((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _));
-    }
-
-    unsafe fn stop(&self) {
-        dbg!(((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_STOPPED as _));
-    }
-
-    unsafe fn stream_properties(&self) -> api::StreamProperties {
-        api::StreamProperties {
-            channels: self.frame_desc.channels,
-            sample_rate: self.frame_desc.sample_rate,
-            buffer_size: BUFFER_NUM_FRAMES,
-        }
-    }
-
-    unsafe fn set_callback(&mut self, callback: api::StreamCallback) -> Result<()> {
         let buffers = (0..BUFFER_CHAIN_SIZE)
             .map(|_| {
-                let buffer_size = self.frame_desc.channels.bits().count_ones() as usize * BUFFER_NUM_FRAMES;
+                let buffer_size = num_channels as usize * BUFFER_NUM_FRAMES;
                 let mut buffer = Vec::<u32>::with_capacity(buffer_size);
                 buffer.set_len(buffer_size);
                 buffer
             })
             .collect();
 
+        let stream = Stream {
+            frame_desc: api::FrameDesc {
+                format: desc.sample_desc.format,
+                channels: channels.output,
+                sample_rate: desc.sample_desc.sample_rate,
+            },
+        };
+
         let data = Box::new(CallbackData {
             buffers,
             cur_buffer: 0,
             callback,
+            stream,
         });
         let data = Box::into_raw(data); // TODO: destroy
 
         extern "C" fn write_cb(queue: sles::SLAndroidSimpleBufferQueueItf, user: *mut c_void) {
             unsafe {
-                let data = unsafe { &mut *(user as *mut CallbackData) };
+                let data = &mut *(user as *mut CallbackData);
                 data.cur_buffer = (data.cur_buffer + 1) % data.buffers.len();
                 let buffer = &mut data.buffers[data.cur_buffer];
 
-                (data.callback)(api::StreamBuffers {
+                (data.callback)(&data.stream, api::StreamBuffers {
                     output: buffer.as_mut_ptr() as _,
                     input: ptr::null(),
                     frames: buffer.len() / 2,
@@ -290,18 +258,56 @@ impl api::Device for Device {
             }
         }
 
-        dbg!("{:?}", (**self.queue).RegisterCallback.unwrap()(self.queue, Some(write_cb), data as _));
+        dbg!("{:?}", (**queue).RegisterCallback.unwrap()(queue, Some(write_cb), data as _));
 
         // Enqueue one frame to get the ball rolling
-        write_cb(self.queue, data as _);
+        write_cb(queue, data as _);
 
+        Ok(Device {
+            engine: self.engine,
+            state,
+            queue,
+        })
+    }
+
+    unsafe fn poll_events<F>(&self, _callback: F) -> Result<()>
+    where
+        F: FnMut(api::Event),
+    {
         Ok(())
     }
+}
 
-    unsafe fn acquire_buffers(&mut self, _timeout_ms: u32) -> Result<api::StreamBuffers> {
-        Err(api::Error::Validation)
+pub struct Stream {
+    frame_desc: api::FrameDesc,
+}
+
+impl api::Stream for Stream {
+    unsafe fn properties(&self) -> api::StreamProperties {
+        api::StreamProperties {
+            channels: self.frame_desc.channels,
+            sample_rate: self.frame_desc.sample_rate,
+            buffer_size: BUFFER_NUM_FRAMES,
+        }
     }
-    unsafe fn release_buffers(&mut self, _num_frames: api::Frames) -> Result<()> {
+}
+
+pub struct Device {
+    engine: sles::SLEngineItf,
+    state: sles::SLPlayItf,
+    queue: sles::SLAndroidSimpleBufferQueueItf,
+}
+
+impl api::Device for Device {
+    unsafe fn start(&self) {
+        dbg!(((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _));
+    }
+
+    unsafe fn stop(&self) {
+        dbg!(((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_STOPPED as _));
+    }
+
+    unsafe fn submit_buffers(&mut self, _timeout_ms: u32) -> Result<()> {
         Err(api::Error::Validation)
     }
 }
