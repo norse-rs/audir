@@ -19,3 +19,4 @@ For callback based approaches the platform takes care of the executor already (w
 - not possible to query all supported formats from a physical device (WASAPI)
 - AAudio requires callback to be set when opening the device
 - Exact stream properties only known after creation
+- Format selection is somewhat tricky, cpal's default format function difficult to support on all platforms

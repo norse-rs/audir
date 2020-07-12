@@ -124,6 +124,20 @@ fn map_frame_desc(frame_desc: &api::FrameDesc) -> Option<WAVEFORMATEXTENSIBLE> {
         _ => unimplemented!(),
     };
 
+    let mut channel_mask = 0;
+    {
+        let channels = frame_desc.channels;
+        if channels.contains(api::ChannelMask::FRONT_LEFT) {
+            channel_mask |= SPEAKER_FRONT_LEFT;
+        }
+        if channels.contains(api::ChannelMask::FRONT_RIGHT) {
+            channel_mask |= SPEAKER_FRONT_RIGHT;
+        }
+        if channels.contains(api::ChannelMask::FRONT_CENTER) {
+            channel_mask |= SPEAKER_FRONT_CENTER;
+        }
+    }
+
     let num_channels = frame_desc.num_channels();
     let bits_per_sample = 8 * bytes_per_sample;
 
@@ -140,7 +154,7 @@ fn map_frame_desc(frame_desc: &api::FrameDesc) -> Option<WAVEFORMATEXTENSIBLE> {
     Some(WAVEFORMATEXTENSIBLE {
         Format: format,
         Samples: bits_per_sample as _,
-        dwChannelMask: 0, // TODO
+        dwChannelMask: channel_mask,
         SubFormat: sub_format,
     })
 }
@@ -197,20 +211,26 @@ struct PhysicalDevice {
 }
 
 impl PhysicalDevice {
-    unsafe fn default_format(&self, sharing: api::SharingMode) -> Result<api::FrameDesc> {
-        match sharing {
-            api::SharingMode::Concurrent => {
-                let mut mix_format = ptr::null_mut();
-                self.audio_client.GetMixFormat(&mut mix_format);
-                map_waveformat(mix_format)
-            }
-            api::SharingMode::Exclusive => unimplemented!(),
-        }
-    }
+    // TODO: extension?
+    // unsafe fn mix_format(&self) -> Result<api::FrameDesc> {
+    //     let mut mix_format = ptr::null_mut();
+    //     self.audio_client.GetMixFormat(&mut mix_format);
+    //     map_waveformat(mix_format)
+    // }
 }
 
 type PhysicalDeviceId = String;
 type PhysialDeviceMap = HashMap<PhysicalDeviceId, Handle<PhysicalDevice>>;
+
+pub struct Session(Option<audio_thread_priority::RtPriorityHandle>);
+
+impl std::ops::Drop for Session {
+    fn drop(&mut self) {
+        if let Some(handle) = self.0.take() {
+            audio_thread_priority::demote_current_thread_from_real_time(handle).unwrap();
+        }
+    }
+}
 
 pub struct Instance {
     raw: InstanceRaw,
@@ -222,6 +242,7 @@ pub struct Instance {
 impl api::Instance for Instance {
     type Device = Device;
     type Stream = Stream;
+    type Session = Session;
 
     unsafe fn properties() -> api::InstanceProperties {
         api::InstanceProperties {
@@ -326,24 +347,6 @@ impl api::Instance for Instance {
         })
     }
 
-    unsafe fn physical_device_default_input_format(
-        &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
-    ) -> Result<api::FrameDesc> {
-        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
-        physical_device.default_format(sharing)
-    }
-
-    unsafe fn physical_device_default_output_format(
-        &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
-    ) -> Result<api::FrameDesc> {
-        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
-        physical_device.default_format(sharing)
-    }
-
     unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
@@ -429,9 +432,9 @@ impl api::Instance for Instance {
         })
     }
 
-    unsafe fn destroy_device(&self, device: &mut Device) {
-        device.client.Release();
-        device.fence.destory();
+    unsafe fn create_session(&self, sample_rate: usize) -> Result<Session> {
+        let rt_handle = audio_thread_priority::promote_current_thread_to_real_time(0, sample_rate as _).unwrap();
+        Ok(Session(Some(rt_handle)))
     }
 
     unsafe fn poll_events<F>(&self, _callback: F) -> Result<()>
@@ -579,6 +582,15 @@ pub struct Device {
     device_stream: DeviceStream,
     callback: api::StreamCallback<Stream>,
     stream: Stream,
+}
+
+impl std::ops::Drop for Device {
+    fn drop(&mut self) {
+        unsafe {
+            self.client.Release();
+            self.fence.destory();
+        }
+    }
 }
 
 impl Device {

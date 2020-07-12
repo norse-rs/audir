@@ -153,6 +153,7 @@ pub type StreamCallback<S> = Box<dyn FnMut(&S, StreamBuffers) + Send>;
 pub trait Instance {
     type Device: Device;
     type Stream: Stream;
+    type Session;
 
     unsafe fn properties() -> InstanceProperties;
 
@@ -169,21 +170,9 @@ pub trait Instance {
         physical_device: PhysicalDevice,
     ) -> Result<PhysicalDeviceProperties>;
 
-    unsafe fn physical_device_default_input_format(
-        &self,
-        physical_device: PhysicalDevice,
-        sharing: SharingMode,
-    ) -> Result<FrameDesc>;
-
-    unsafe fn physical_device_default_output_format(
-        &self,
-        physical_device: PhysicalDevice,
-        sharing: SharingMode,
-    ) -> Result<FrameDesc>;
-
     unsafe fn create_device(&self, desc: DeviceDesc, channels: Channels, callback: StreamCallback<Self::Stream>) -> Result<Self::Device>;
 
-    unsafe fn destroy_device(&self, device: &mut Self::Device);
+    unsafe fn create_session(&self, sample_rate: usize) -> Result<Self::Session>;
 
     unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
     where

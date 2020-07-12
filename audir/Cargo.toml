@@ -9,12 +9,11 @@ workspace = ".."
 
 [[example]]
 name = "aaudio"
-src = "examples/aaudio.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
 bitflags = "1"
-log = "0.4"
+audio_thread_priority = "0.23"
 
 [target.'cfg(windows)'.dependencies]
 com-impl = "0.1.1"

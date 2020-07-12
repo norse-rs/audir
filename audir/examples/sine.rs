@@ -41,6 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             instance.physical_device_properties(output_device)?
         );
 
+        let sample_rate = 48_000;
         let frequency = 440.0;
         let mut cycle = 0.0;
 
@@ -72,7 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 sharing: audir::SharingMode::Concurrent,
                 sample_desc: audir::SampleDesc {
                     format: audir::Format::F32,
-                    sample_rate: 48_000,
+                    sample_rate,
                 },
             },
             audir::Channels {
@@ -81,6 +82,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
             Box::new(callback),
         )?;
+
+        let _session = instance.create_session(sample_rate)?;
 
         device.start();
 

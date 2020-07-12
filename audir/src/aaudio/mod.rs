@@ -10,6 +10,7 @@ pub struct Instance {
 impl api::Instance for Instance {
     type Device = Device;
     type Stream = Stream;
+    type Session = ();
 
     unsafe fn properties() -> api::InstanceProperties {
         api::InstanceProperties {
@@ -42,18 +43,6 @@ impl api::Instance for Instance {
         physical_device: api::PhysicalDevice,
     ) -> Result<api::PhysicalDeviceProperties> { todo!() }
 
-    unsafe fn physical_device_default_input_format(
-        &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
-    ) -> Result<api::FrameDesc> { todo!() }
-
-    unsafe fn physical_device_default_output_format(
-        &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
-    ) -> Result<api::FrameDesc> { todo!() }
-
     unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
@@ -85,7 +74,9 @@ impl api::Instance for Instance {
         })
     }
 
-    unsafe fn destroy_device(&self, device: &mut Device) { todo!() }
+    unsafe fn create_session(&self, _: usize) -> Result<()> {
+        Ok(())
+    }
 
     unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
     where

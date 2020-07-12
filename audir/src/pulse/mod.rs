@@ -16,6 +16,7 @@ pub struct PhysicalDevice {
 type PhysialDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
 
 impl PhysicalDevice {
+    // TOOD: extension?
     fn default_format(&self) -> Result<api::FrameDesc> {
         let format = match self.sample_spec.format {
             pulse::pa_sample_format_t::F32le => api::Format::F32,
@@ -141,6 +142,8 @@ pub struct Instance {
 
 impl api::Instance for Instance {
     type Device = Device;
+    type Stream = Stream;
+    type Session = (); // TODO
 
     unsafe fn properties() -> api::InstanceProperties {
         api::InstanceProperties {
@@ -223,28 +226,11 @@ impl api::Instance for Instance {
         })
     }
 
-    unsafe fn physical_device_default_input_format(
-        &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
-    ) -> Result<api::FrameDesc> {
-        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
-        physical_device.default_format()
-    }
-
-    unsafe fn physical_device_default_output_format(
-        &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
-    ) -> Result<api::FrameDesc> {
-        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
-        physical_device.default_format()
-    }
-
     unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
         channels: api::Channels,
+        callback: api::StreamCallback<Stream>,
     ) -> Result<Self::Device> {
         let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
 
@@ -301,11 +287,12 @@ impl api::Instance for Instance {
             stream,
             cur_buffer: ptr::null_mut(),
             frame_size,
+            callback,
         })
     }
 
-    unsafe fn destroy_device(&self, device: &mut Self::Device) {
-        unimplemented!()
+    unsafe fn create_session(&self, sample_rate: usize) -> Result<Self::Session> {
+        Ok(())
     }
 
     unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
@@ -337,34 +324,10 @@ pub struct Device {
     stream: *mut pulse::pa_stream,
     cur_buffer: *mut c_void,
     frame_size: usize,
+    callback: api::StreamCallback<Stream>,
 }
 
-impl api::Device for Device {
-    unsafe fn start(&self) {
-        println!("Device::start unimplemented");
-    }
-
-    unsafe fn stop(&self) {
-        println!("Device::stop unimplemented");
-    }
-
-    unsafe fn stream_properties(&self) -> api::StreamProperties {
-        let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(self.stream);
-        dbg!((
-            buffer_attrs.minreq,
-            buffer_attrs.maxlength,
-            buffer_attrs.tlength
-        ));
-        let sample_spec = &*pulse::pa_stream_get_sample_spec(self.stream);
-        let channel_map = &*pulse::pa_stream_get_channel_map(self.stream);
-
-        api::StreamProperties {
-            channels: map_channels(channel_map),
-            sample_rate: sample_spec.rate as _,
-            buffer_size: buffer_attrs.minreq as _,
-        }
-    }
-
+impl Device {
     unsafe fn acquire_buffers(&mut self, timeout_ms: u32) -> Result<api::StreamBuffers> {
         let mut size = loop {
             let size = pulse::pa_stream_writable_size(self.stream);
@@ -397,5 +360,39 @@ impl api::Device for Device {
             pulse::PA_SEEK_RELATIVE,
         );
         Ok(())
+    }
+}
+
+impl api::Device for Device {
+    unsafe fn start(&self) {
+        println!("Device::start unimplemented");
+    }
+
+    unsafe fn stop(&self) {
+        println!("Device::stop unimplemented");
+    }
+
+    unsafe fn submit_buffers(&mut self, timeout_ms: u32) -> Result<()> {
+        let buffers = self.acquire_buffers(timeout_ms)?;
+        (self.callback)(&Stream(self.stream), buffers);
+        self.release_buffers(buffers.frames)
+    }
+}
+
+pub struct Stream(*mut pulse::pa_stream);
+
+impl api::Stream for Stream {
+    unsafe fn properties(&self) -> api::StreamProperties {
+        let stream = self.0;
+
+        let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(stream);
+        let sample_spec = &*pulse::pa_stream_get_sample_spec(stream);
+        let channel_map = &*pulse::pa_stream_get_channel_map(stream);
+
+        api::StreamProperties {
+            channels: map_channels(channel_map),
+            sample_rate: sample_spec.rate as _,
+            buffer_size: buffer_attrs.minreq as _,
+        }
     }
 }
