@@ -60,14 +60,14 @@ pub struct PhysicalDeviceProperties {
     pub streams: StreamFlags,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Format {
     F32,
     I16,
     U32,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct SampleDesc {
     pub format: Format,
     pub sample_rate: usize,
@@ -169,6 +169,13 @@ pub trait Instance {
         &self,
         physical_device: PhysicalDevice,
     ) -> Result<PhysicalDeviceProperties>;
+
+    unsafe fn physical_device_supports_format(
+        &self,
+        physical_device: PhysicalDevice,
+        sharing: SharingMode,
+        frame_desc: FrameDesc,
+    ) -> bool;
 
     unsafe fn create_device(&self, desc: DeviceDesc, channels: Channels, callback: StreamCallback<Self::Stream>) -> Result<Self::Device>;
 

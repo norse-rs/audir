@@ -68,6 +68,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap(),
         };
 
+        dbg!(instance.physical_device_properties(output_device)?);
+
         let mut sample = 0;
         let callback = move |stream: &<Instance as InstanceTrait>::Stream, buffers: audir::StreamBuffers| {
             let properties = stream.properties();

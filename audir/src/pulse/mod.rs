@@ -5,7 +5,7 @@ use std::ffi::c_void;
 use std::ffi::CStr;
 use std::ptr;
 
-pub struct PhysicalDevice {
+struct PhysicalDevice {
     device_name: String,
     dev: *const i8,
     streams: api::StreamFlags,
@@ -13,10 +13,10 @@ pub struct PhysicalDevice {
     channels: api::ChannelMask,
 }
 
-type PhysialDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
+type PhysicalDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
 
 impl PhysicalDevice {
-    // TOOD: extension?
+    // TOOD: as extension?
     fn default_format(&self) -> Result<api::FrameDesc> {
         let format = match self.sample_spec.format {
             pulse::pa_sample_format_t::F32le => api::Format::F32,
@@ -59,7 +59,7 @@ extern "C" fn sink_info_cb(
     }
 
     let info = unsafe { &*info };
-    let physical_devices = unsafe { &mut *(user as *mut PhysialDeviceMap) };
+    let physical_devices = unsafe { &mut *(user as *mut PhysicalDeviceMap) };
 
     let name = unsafe { CStr::from_ptr(info.name).to_string_lossy().into_owned() };
     let device_name = unsafe {
@@ -96,7 +96,7 @@ extern "C" fn source_info_cb(
     }
 
     let info = unsafe { &*info };
-    let physical_devices = unsafe { &mut *(user as *mut PhysialDeviceMap) };
+    let physical_devices = unsafe { &mut *(user as *mut PhysicalDeviceMap) };
 
     let name = unsafe {
         CStr::from_ptr(info.description)
@@ -137,7 +137,7 @@ fn map_format(format: api::Format) -> pulse::pa_sample_format_t {
 pub struct Instance {
     mainloop: *mut pulse::pa_mainloop,
     context: *mut pulse::pa_context,
-    physical_devices: PhysialDeviceMap,
+    physical_devices: PhysicalDeviceMap,
 }
 
 impl api::Instance for Instance {
@@ -168,7 +168,7 @@ impl api::Instance for Instance {
             }
         }
 
-        let mut physical_devices = PhysialDeviceMap::new();
+        let mut physical_devices = PhysicalDeviceMap::new();
 
         // input devices
         let operation = pulse::pa_context_get_sink_info_list(
@@ -224,6 +224,21 @@ impl api::Instance for Instance {
             device_name: physical_device.device_name.clone(),
             streams: physical_device.streams,
         })
+    }
+
+    unsafe fn physical_device_supports_format(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+        frame_desc: api::FrameDesc,
+    ) -> bool {
+        if sharing == api::SharingMode::Exclusive {
+            // concurrent only
+            return false;
+        }
+
+        // TODO: supporting everything?
+        return true;
     }
 
     unsafe fn create_device(

@@ -4,7 +4,7 @@ use std::os::raw::c_void;
 use std::ptr;
 
 const BUFFER_NUM_FRAMES: usize = 1024; // TODO: random
-const BUFFER_CHAIN_SIZE: usize = 3; // TOdo
+const BUFFER_CHAIN_SIZE: usize = 3; // TODO
 
 const DEFAULT_PHYSICAL_DEVICE: api::PhysicalDevice = 0;
 
@@ -88,6 +88,15 @@ impl api::Instance for Instance {
             device_name: "default".into(),
             streams: api::StreamFlags::INPUT | api::StreamFlags::OUTPUT,
         })
+    }
+
+    unsafe fn physical_device_supports_format(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+        frame_desc: api::FrameDesc,
+    ) -> bool {
+        todo!()
     }
 
     unsafe fn create_device(

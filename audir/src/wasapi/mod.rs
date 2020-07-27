@@ -448,6 +448,27 @@ impl api::Instance for Instance {
 
         Ok(())
     }
+
+    unsafe fn physical_device_supports_format(
+        &self,
+        physical_device: api::PhysicalDevice,
+        sharing: api::SharingMode,
+        frame_desc: api::FrameDesc,
+    ) -> bool {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+
+        let wave_format = map_frame_desc(&frame_desc).unwrap(); // todo
+        let sharing = map_sharing_mode(sharing);
+
+        let mut closest_format = ptr::null_mut();
+        let hr = dbg!(physical_device.audio_client.IsFormatSupported(
+            sharing,
+            &wave_format as *const _ as _,
+            &mut closest_format
+        ));
+
+        hr == winerror::S_OK
+    }
 }
 
 impl Instance {
@@ -531,25 +552,6 @@ impl Instance {
         }
 
         collection.Release();
-    }
-
-    pub unsafe fn physical_device_supports_format(
-        &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
-        frame_desc: api::FrameDesc,
-    ) {
-        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
-
-        let wave_format = map_frame_desc(&frame_desc).unwrap(); // todo
-        let sharing = map_sharing_mode(sharing);
-
-        let mut closest_format = ptr::null_mut();
-        let hr = dbg!(physical_device.audio_client.IsFormatSupported(
-            sharing,
-            &wave_format as *const _ as _,
-            &mut closest_format
-        ));
     }
 }
 
