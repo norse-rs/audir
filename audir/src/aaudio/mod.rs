@@ -9,6 +9,9 @@ const DEFAULT_PHYSICAL_DEVICE: api::PhysicalDevice = ndk_sys::AAUDIO_UNSPECIFIED
 struct PhysicalDevice {
     device_name: String,
     streams: api::StreamFlags,
+    sample_rates: Vec<i32>,
+    channel_counts: Vec<i32>,
+    formats: Vec<api::Format>,
 }
 type DeviceId = i32;
 type PhysicalDeviceMap = HashMap<DeviceId, PhysicalDevice>;
@@ -122,6 +125,69 @@ impl api::Instance for Instance {
                 .unwrap();
             let device_name: String = env.get_string(name.l().unwrap().into()).unwrap().into();
 
+            // Sample Rates
+            let sample_rates_array = env.call_method(
+                device,
+                "getSampleRates",
+                "()[I",
+                &[]
+            )
+            .unwrap();
+            let sample_rates_array = sample_rates_array.l().unwrap().into_inner();
+            let num_sample_rates = env.get_array_length(sample_rates_array).unwrap();
+
+            let sample_rates = if num_sample_rates > 0 {
+                let mut sample_rates = vec![0; num_sample_rates as usize];
+                env.get_int_array_region(sample_rates_array, 0, &mut sample_rates).unwrap();
+                sample_rates
+            } else {
+                Vec::new()
+            };
+
+            // Channel Counts
+            let channel_count_array = env.call_method(
+                device,
+                "getChannelCounts",
+                "()[I",
+                &[]
+            )
+            .unwrap();
+            let channel_counts_array = channel_count_array.l().unwrap().into_inner();
+            let num_channel_counts = env.get_array_length(channel_counts_array).unwrap();
+
+            let channel_counts = if num_channel_counts > 0 {
+                let mut channel_counts = vec![0; num_channel_counts as usize];
+                env.get_int_array_region(channel_counts_array, 0, &mut channel_counts).unwrap();
+                channel_counts
+            } else {
+                Vec::new()
+            };
+
+            //  Encodings/Formats
+            let encodings_array = env.call_method(
+                device,
+                "getEncodings",
+                "()[I",
+                &[]
+            )
+            .unwrap();
+
+            let encodings_array = encodings_array.l().unwrap().into_inner();
+            let num_encodings = env.get_array_length(encodings_array).unwrap();
+
+            let mut encodings = vec![0; num_encodings as usize];
+            env.get_int_array_region(encodings_array, 0, &mut encodings).unwrap();
+
+            let formats = encodings.into_iter().filter_map(|encoding| {
+                match encoding {
+                    // ENCODING_PCM_16BIT
+                    0x2 => Some(api::Format::I16),
+                    // ENCODING_PCM_FLOAT
+                    0x4 => Some(api::Format::F32),
+                    _ => None,
+                }
+            }).collect::<Vec<_>>();
+
             // Stream Flags
             let mut streams = api::StreamFlags::empty();
             if env.call_method(device, "isSink", "()Z", &[]).unwrap().z().unwrap() {
@@ -136,6 +202,9 @@ impl api::Instance for Instance {
             devices.insert(id, PhysicalDevice {
                 device_name,
                 streams,
+                sample_rates,
+                channel_counts,
+                formats,
             });
         }
 
@@ -159,7 +228,7 @@ impl api::Instance for Instance {
         builder = builder.direction(ndk::aaudio::AAudioDirection::Output);
         match builder.open_stream() {
             Ok(stream) => {
-                let device_id = dbg!(stream.get_device_id());
+                let device_id = stream.get_device_id();
                 Some(device_id as _)
             }
             Err(_) => None,
@@ -187,9 +256,16 @@ impl api::Instance for Instance {
         sharing: api::SharingMode,
         frame_desc: api::FrameDesc,
     ) -> bool {
-        // TODO: channels, sample rate?
-        let format = frame_desc.format;
-        format == api::Format::F32 || format == api::Format::I16
+        let devices = self.devices.lock().unwrap();
+        let device = &devices[&(physical_device as i32)]; // TODO: check
+
+        let num_channels = frame_desc.channels.bits().count_ones();
+
+        let supports_format = device.formats.iter().find(|&&f| f == frame_desc.format).is_some();
+        let supports_sample_rate = device.sample_rates.is_empty() || device.sample_rates.iter().find(|&&s| s == frame_desc.sample_rate as i32).is_some();
+        let supports_channel_count = device.channel_counts.is_empty() || device.channel_counts.iter().find(|&&c| c == num_channels as i32).is_some();
+
+        supports_format && supports_sample_rate && supports_channel_count
     }
 
     unsafe fn create_device(

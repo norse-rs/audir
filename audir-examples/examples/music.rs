@@ -70,6 +70,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
         dbg!(instance.physical_device_properties(output_device)?);
 
+        let sample_rate = 48_000;
+        let format = audir::Format::F32;
+        let output_channels = audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT;
+
+        let supports_format = instance.physical_device_supports_format(
+            output_device,
+            audir::SharingMode::Concurrent,
+            audir::FrameDesc {
+                sample_rate,
+                format,
+                channels: output_channels,
+            });
+        dbg!(supports_format);
+
         let mut sample = 0;
         let callback = move |stream: &<Instance as InstanceTrait>::Stream, buffers: audir::StreamBuffers| {
             let properties = stream.properties();
@@ -93,13 +107,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 physical_device: output_device,
                 sharing: audir::SharingMode::Concurrent,
                 sample_desc: audir::SampleDesc {
-                    format: audir::Format::F32,
-                    sample_rate: 48_000,
+                    format,
+                    sample_rate,
                 },
             },
             audir::Channels {
                 input: audir::ChannelMask::empty(),
-                output: audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT,
+                output: output_channels,
             },
             Box::new(callback),
         )?;
