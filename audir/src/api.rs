@@ -125,7 +125,12 @@ impl fmt::Display for Error {
 }
 
 #[derive(Debug, Clone)]
-pub enum Event {}
+pub enum Event {
+    Added(PhysicalDevice),
+    Removed(PhysicalDevice),
+    DefaultInputDevice(Option<PhysicalDevice>),
+    DefaultOutputDevice(Option<PhysicalDevice>)
+}
 
 #[derive(Debug, Clone)]
 pub struct DeviceDesc {
@@ -181,9 +186,9 @@ pub trait Instance {
 
     unsafe fn create_session(&self, sample_rate: usize) -> Result<Self::Session>;
 
-    unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
+    unsafe fn set_event_callback<F>(&mut self, callback: Option<F>) -> Result<()>
     where
-        F: FnMut(Event);
+        F: FnMut(Event) + Send + 'static;
 }
 
 pub trait Device {

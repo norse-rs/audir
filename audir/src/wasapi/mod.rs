@@ -9,15 +9,8 @@ pub use winapi::shared::winerror::HRESULT;
 pub type WasapiResult<T> = (T, HRESULT);
 
 use com::{Guid, WeakPtr};
-use std::collections::HashMap;
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::{ffi::OsString, mem, os::windows::ffi::OsStringExt, ptr, slice};
-use winapi::shared::devpkey::*;
-use winapi::shared::ksmedia;
-use winapi::shared::minwindef::DWORD;
-use winapi::shared::mmreg::*;
-use winapi::shared::winerror;
-use winapi::shared::wtypes::PROPERTYKEY;
+use std::{collections::HashMap, ffi::OsString, mem, os::windows::ffi::OsStringExt, ptr, slice, sync::Mutex};
+use winapi::shared::{devpkey::*, ksmedia, minwindef::DWORD, mmreg::*, winerror, wtypes::PROPERTYKEY};
 use winapi::um::audioclient::*;
 use winapi::um::audiosessiontypes::*;
 use winapi::um::combaseapi::*;
@@ -26,27 +19,12 @@ use winapi::um::mmdeviceapi::*;
 use winapi::um::objbase::COINIT_MULTITHREADED;
 use winapi::um::propsys::*;
 use winapi::um::winnt::*;
-
 use winapi::Interface;
 
 use crate::{
     api::{self, Result},
     handle::Handle,
 };
-
-#[derive(Debug)]
-enum Event {
-    Added(PhysicalDeviceId),
-    Removed(PhysicalDeviceId),
-    Changed {
-        device: PhysicalDeviceId,
-        state: u32,
-    },
-    Default {
-        device: PhysicalDeviceId,
-        flow: EDataFlow,
-    },
-}
 
 unsafe fn string_from_wstr(os_str: *const WCHAR) -> String {
     let mut len = 0;
@@ -63,28 +41,23 @@ unsafe fn string_from_wstr(os_str: *const WCHAR) -> String {
 pub struct NotificationClient {
     vtbl: com_impl::VTable<IMMNotificationClientVtbl>,
     refcount: com_impl::Refcount,
-    tx: Sender<Event>,
+    cb: Box<dyn FnMut(api::Event)>,
 }
 
 #[com_impl::com_impl]
 unsafe impl IMMNotificationClient for NotificationClient {
     unsafe fn on_device_state_changed(&self, pwstrDeviceId: LPCWSTR, state: DWORD) -> HRESULT {
-        let _ = self.tx.send(Event::Changed {
-            device: string_from_wstr(pwstrDeviceId),
-            state,
-        });
+        println!("changed {} to {}", string_from_wstr(pwstrDeviceId), state);
         winerror::S_OK
     }
 
     unsafe fn on_device_added(&self, pwstrDeviceId: LPCWSTR) -> HRESULT {
-        let _ = self.tx.send(Event::Added(string_from_wstr(pwstrDeviceId)));
+        println!("added {}", string_from_wstr(pwstrDeviceId));
         winerror::S_OK
     }
 
     unsafe fn on_device_removed(&self, pwstrDeviceId: LPCWSTR) -> HRESULT {
-        let _ = self
-            .tx
-            .send(Event::Removed(string_from_wstr(pwstrDeviceId)));
+        println!("removed {}", string_from_wstr(pwstrDeviceId));
         winerror::S_OK
     }
 
@@ -95,10 +68,7 @@ unsafe impl IMMNotificationClient for NotificationClient {
         pwstrDefaultDeviceId: LPCWSTR,
     ) -> HRESULT {
         if role == eConsole {
-            let _ = self.tx.send(Event::Default {
-                device: string_from_wstr(pwstrDefaultDeviceId),
-                flow,
-            });
+            println!("default {:?} ({})", pwstrDefaultDeviceId, role);
         }
 
         winerror::S_OK
@@ -205,12 +175,17 @@ type InstanceRaw = WeakPtr<IMMDeviceEnumerator>;
 type PhysicalDeviceRaw = WeakPtr<IMMDevice>;
 struct PhysicalDevice {
     device: PhysicalDeviceRaw,
-    state: u32,
     audio_client: WeakPtr<IAudioClient>,
     streams: api::StreamFlags,
 }
 
 impl PhysicalDevice {
+    unsafe fn state(&self) -> u32 {
+        let mut state = 0;
+        self.device.GetState(&mut state);
+        state
+    }
+
     // TODO: extension?
     // unsafe fn mix_format(&self) -> Result<api::FrameDesc> {
     //     let mut mix_format = ptr::null_mut();
@@ -234,9 +209,8 @@ impl std::ops::Drop for Session {
 
 pub struct Instance {
     raw: InstanceRaw,
-    physical_devices: PhysialDeviceMap,
+    physical_devices: Mutex<PhysialDeviceMap>,
     notifier: WeakPtr<NotificationClient>,
-    event_rx: Receiver<Event>,
 }
 
 impl api::Instance for Instance {
@@ -264,26 +238,27 @@ impl api::Instance for Instance {
             instance.mut_void(),
         );
 
-        let (tx, event_rx) = channel();
-        let notification_client = NotificationClient::create_raw(tx);
-
         let mut physical_devices = HashMap::new();
         Self::enumerate_physical_devices_by_flow(&mut physical_devices, instance, eCapture);
         Self::enumerate_physical_devices_by_flow(&mut physical_devices, instance, eRender);
 
         Instance {
             raw: instance,
-            physical_devices,
-            notifier: WeakPtr::from_raw(notification_client),
-            event_rx,
+            physical_devices: Mutex::new(physical_devices),
+            notifier: WeakPtr::null(),
         }
     }
 
     unsafe fn enumerate_physical_devices(&self) -> Vec<api::PhysicalDevice> {
-        self.physical_devices
+        let mut physical_devices = self.physical_devices.lock().unwrap();
+
+        Self::enumerate_physical_devices_by_flow(&mut physical_devices, self.raw, eCapture);
+        Self::enumerate_physical_devices_by_flow(&mut physical_devices, self.raw, eRender);
+
+        physical_devices
             .values()
             .filter_map(|device| {
-                if device.state & DEVICE_STATE_ACTIVE != 0 {
+                if device.state() & DEVICE_STATE_ACTIVE != 0 {
                     Some(device.raw())
                 } else {
                     None
@@ -301,7 +276,7 @@ impl api::Instance for Instance {
             None
         } else {
             let id = Self::get_physical_device_id(device);
-            Some(self.physical_devices[&id].raw())
+            Some(self.physical_devices.lock().unwrap()[&id].raw())
         }
     }
 
@@ -314,7 +289,7 @@ impl api::Instance for Instance {
             None
         } else {
             let id = Self::get_physical_device_id(device);
-            Some(self.physical_devices[&id].raw())
+            Some(self.physical_devices.lock().unwrap()[&id].raw())
         }
     }
 
@@ -437,13 +412,18 @@ impl api::Instance for Instance {
         Ok(Session(Some(rt_handle)))
     }
 
-    unsafe fn poll_events<F>(&self, _callback: F) -> Result<()>
+    unsafe fn set_event_callback<F>(&mut self, callback: Option<F>) -> Result<()>
     where
-        F: FnMut(api::Event),
+        F: FnMut(api::Event) + Send + 'static,
     {
-        while let Ok(event) = self.event_rx.try_recv() {
-            // TODO
-            dbg!(event);
+        if !self.notifier.is_null() {
+            self.raw.UnregisterEndpointNotificationCallback(self.notifier.as_mut_ptr() as *mut _);
+            self.notifier.as_unknown().Release();
+        }
+
+        if let Some(callback) = callback {
+            self.notifier = WeakPtr::from_raw(NotificationClient::create_raw(Box::new(callback)));
+            self.raw.RegisterEndpointNotificationCallback(self.notifier.as_mut_ptr() as *mut _);
         }
 
         Ok(())
@@ -500,10 +480,7 @@ impl Instance {
             let mut collection = DeviceCollection::null();
             let _hr = instance.EnumAudioEndpoints(
                 ty,
-                DEVICE_STATE_ACTIVE
-                    | DEVICE_STATE_DISABLED
-                    | DEVICE_STATE_NOTPRESENT
-                    | DEVICE_STATE_UNPLUGGED,
+                DEVICE_STATEMASK_ALL,
                 collection.mut_void() as *mut _,
             );
             collection
@@ -519,6 +496,7 @@ impl Instance {
             let mut device = PhysicalDeviceRaw::null();
             collection.Item(i, device.mut_void() as *mut _);
             let id = Self::get_physical_device_id(device);
+
             let state = {
                 let mut state = 0;
                 device.GetState(&mut state);
@@ -544,7 +522,6 @@ impl Instance {
 
                     Handle::new(PhysicalDevice {
                         device,
-                        state,
                         audio_client,
                         streams: stream_flags,
                     })

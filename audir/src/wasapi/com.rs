@@ -35,14 +35,14 @@ impl<T> WeakPtr<T> {
     pub unsafe fn mut_void(&mut self) -> *mut *mut c_void {
         &mut self.0 as *mut *mut _ as *mut *mut _
     }
-}
 
-impl<T: Interface> WeakPtr<T> {
     pub unsafe fn as_unknown(&self) -> &IUnknown {
         debug_assert!(!self.is_null());
         &*(self.0 as *mut IUnknown)
     }
+}
 
+impl<T: Interface> WeakPtr<T> {
     // Cast creates a new WeakPtr requiring explicit destroy call.
     pub unsafe fn cast<U>(self) -> WasapiResult<WeakPtr<U>>
     where

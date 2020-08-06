@@ -22,6 +22,13 @@ Low level cross-platform audio library.
 
 The library tries to be un-opionionated by closely tying the API to the exposed functionality of the backends. See the [design notes](audir/DESIGN.md) for more background about different aspects of the API.
 
+## Backends
+
+- Wasapi (Windows)
+- Pulse (Linux)
+- OpenSL|ES (Android)
+- AAudio (Android)
+
 ## Usage
 
 Basic audio rendering example:

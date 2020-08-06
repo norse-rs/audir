@@ -310,9 +310,9 @@ impl api::Instance for Instance {
         Ok(())
     }
 
-    unsafe fn poll_events<F>(&self, callback: F) -> Result<()>
+    unsafe fn set_event_callback<F>(&mut self, callback: Option<F>) -> Result<()>
     where
-        F: FnMut(api::Event),
+        F: FnMut(api::Event) + Send + 'static
     {
         unimplemented!()
     }
