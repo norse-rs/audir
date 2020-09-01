@@ -37,6 +37,22 @@ pub enum StreamMode {
     Callback,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FormFactor {
+    ///
+    Unknown,
+    /// Remote Network
+    Remote,
+    ///
+    LineLevel,
+    ///
+    Headphones,
+    ///
+    Headset,
+    ///
+    Microphone,
+}
+
 bitflags::bitflags! {
     pub struct ChannelMask: u32 {
         const FRONT_LEFT = 0b0001;

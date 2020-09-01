@@ -7,10 +7,6 @@ workspace = ".."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[[example]]
-name = "aaudio"
-crate-type = ["cdylib"]
-
 [dependencies]
 bitflags = "1"
 
@@ -31,3 +27,7 @@ ndk = { version = "0.1.1", features = ["aaudio"] }
 ndk-sys = "0.1.1"
 ndk-glue = "0.1.1"
 jni = "0.16"
+
+[dev-dependencies]
+anyhow = "1"
+hound = "3"

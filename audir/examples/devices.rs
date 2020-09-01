@@ -1,7 +1,6 @@
 use audir::Instance;
-use std::error::Error;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     unsafe {
         #[cfg(windows)]
         let instance = audir::wasapi::Instance::create("audir - devices");
@@ -13,24 +12,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         for device in &physical_devices {
             let properties = instance.physical_device_properties(*device)?;
             println!("{:#?}", instance.physical_device_properties(*device)?);
-            if properties.streams.contains(audir::StreamFlags::INPUT) {
-                println!(
-                    " - Input Format: {:#?}",
-                    instance.physical_device_default_input_format(
-                        *device,
-                        audir::SharingMode::Concurrent
-                    )
-                );
-            }
-            if properties.streams.contains(audir::StreamFlags::OUTPUT) {
-                println!(
-                    " - Ouput Format: {:#?}",
-                    instance.physical_device_default_output_format(
-                        *device,
-                        audir::SharingMode::Concurrent
-                    )
-                );
-            }
         }
 
         if let Some(output_device) = instance.default_physical_output_device() {

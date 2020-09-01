@@ -4,12 +4,14 @@ use audir::pulse::Instance;
 use audir::wasapi::Instance;
 
 use audir::{Device, Instance as InstanceTrait, Stream};
-use std::error::Error;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     unsafe {
         let instance_properties = Instance::properties();
-        let instance = Instance::create("audir - sine");
+        let mut instance = Instance::create("audir - sine");
+        instance.set_event_callback(Some(|event| {
+            dbg!(event);
+        }));
 
         let physical_devices = instance.enumerate_physical_devices();
 

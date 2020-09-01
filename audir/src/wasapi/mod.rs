@@ -11,14 +11,7 @@ pub type WasapiResult<T> = (T, HRESULT);
 use com::{Guid, WeakPtr};
 use std::{collections::HashMap, ffi::OsString, mem, os::windows::ffi::OsStringExt, ptr, slice, sync::Mutex};
 use winapi::shared::{devpkey::*, ksmedia, minwindef::DWORD, mmreg::*, winerror, wtypes::PROPERTYKEY};
-use winapi::um::audioclient::*;
-use winapi::um::audiosessiontypes::*;
-use winapi::um::combaseapi::*;
-use winapi::um::coml2api::STGM_READ;
-use winapi::um::mmdeviceapi::*;
-use winapi::um::objbase::COINIT_MULTITHREADED;
-use winapi::um::propsys::*;
-use winapi::um::winnt::*;
+use winapi::um::{audioclient::*, audiosessiontypes::*, combaseapi::*, coml2api::STGM_READ, mmdeviceapi::*, objbase::COINIT_MULTITHREADED, propsys::*, winnt::*};
 use winapi::Interface;
 
 use crate::{
@@ -63,7 +56,7 @@ unsafe impl IMMNotificationClient for NotificationClient {
 
     unsafe fn on_default_device_changed(
         &self,
-        flow: EDataFlow,
+        _flow: EDataFlow,
         role: ERole,
         pwstrDefaultDeviceId: LPCWSTR,
     ) -> HRESULT {
@@ -76,8 +69,8 @@ unsafe impl IMMNotificationClient for NotificationClient {
 
     unsafe fn on_property_value_changed(
         &self,
-        pwstrDeviceId: LPCWSTR,
-        key: PROPERTYKEY,
+        _pwstrDeviceId: LPCWSTR,
+        _key: PROPERTYKEY,
     ) -> HRESULT {
         winerror::S_OK
     }
@@ -316,6 +309,15 @@ impl api::Instance for Instance {
             string_from_wstr(os_str)
         };
 
+        let form_factor = {
+            let mut value = mem::MaybeUninit::uninit();
+            store.GetValue(
+                &PKEY_AudioEndpoint_FormFactor as *const _ as *const _,
+                value.as_mut_ptr(),
+            );
+            *value.assume_init().data.uintVal()
+        };
+
         Ok(api::PhysicalDeviceProperties {
             device_name,
             streams: physical_device.streams,
@@ -344,16 +346,21 @@ impl api::Instance for Instance {
             sample_rate: desc.sample_desc.sample_rate,
         };
         let mix_format = map_frame_desc(&frame_desc).unwrap(); // todo
-        dbg!(physical_device.audio_client.Initialize(
+        let hr = physical_device.audio_client.Initialize(
             sharing,
             AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
             0,
             0,
             &mix_format as *const _ as _,
             ptr::null(),
-        ));
+        );
+        println!("{:#x}", hr);
 
         physical_device.audio_client.SetEventHandle(fence.0);
+
+        let mut mix_format = ptr::null_mut();
+        physical_device.audio_client.GetMixFormat(&mut mix_format);
+        let frame_desc = map_waveformat(mix_format).unwrap();
 
         let (stream, device_stream) = if !channels.input.is_empty() {
             let mut capture_client = WeakPtr::<IAudioCaptureClient>::null();
@@ -361,7 +368,19 @@ impl api::Instance for Instance {
                 &IAudioCaptureClient::uuidof(),
                 capture_client.mut_void() as _,
             );
-            let stream = unimplemented!();
+            let buffer_size = {
+                let mut size = 0;
+                physical_device.audio_client.GetBufferSize(&mut size);
+                size
+            };
+
+            let stream = Stream {
+                properties: api::StreamProperties {
+                    channels: frame_desc.channels,
+                    sample_rate: frame_desc.sample_rate,
+                    buffer_size: buffer_size as _,
+                },
+            };
             let device_stream = DeviceStream::Input {
                 client: capture_client,
             };
@@ -377,11 +396,6 @@ impl api::Instance for Instance {
                 physical_device.audio_client.GetBufferSize(&mut size);
                 size
             };
-
-            let mut mix_format = ptr::null_mut();
-            physical_device.audio_client.GetMixFormat(&mut mix_format);
-
-            let frame_desc = map_waveformat(mix_format).unwrap();
 
             let stream = Stream {
                 properties: api::StreamProperties {
@@ -536,7 +550,9 @@ impl std::ops::Drop for Instance {
     fn drop(&mut self) {
         unsafe {
             self.raw.Release();
-            WeakPtr::from_raw(self.notifier.as_mut_ptr() as *mut IMMNotificationClient).Release();
+            if !self.notifier.is_null() {
+                WeakPtr::from_raw(self.notifier.as_mut_ptr() as *mut IMMNotificationClient).Release();
+            }
             // TODO: drop audio clients
         }
     }
