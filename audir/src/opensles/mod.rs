@@ -87,15 +87,23 @@ impl api::Instance for Instance {
         Ok(api::PhysicalDeviceProperties {
             device_name: "default".into(),
             streams: api::StreamFlags::INPUT | api::StreamFlags::OUTPUT,
+            form_factor: api::FormFactor::Unknown,
         })
     }
 
     unsafe fn physical_device_supports_format(
         &self,
-        physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
-        frame_desc: api::FrameDesc,
+        _physical_device: api::PhysicalDevice,
+        _sharing: api::SharingMode,
+        _frame_desc: api::FrameDesc,
     ) -> bool {
+        todo!()
+    }
+
+    unsafe fn physical_device_default_concurrent_format(
+        &self,
+        _physical_device: api::PhysicalDevice,
+    ) -> Result<api::FrameDesc> {
         todo!()
     }
 
@@ -235,11 +243,14 @@ impl api::Instance for Instance {
                 data.cur_buffer = (data.cur_buffer + 1) % data.buffers.len();
                 let buffer = &mut data.buffers[data.cur_buffer];
 
-                (data.callback)(&data.stream, api::StreamBuffers {
-                    output: buffer.as_mut_ptr() as _,
-                    input: ptr::null(),
-                    frames: buffer.len() / 2,
-                }); // TODO: channels + sizeof u32
+                (data.callback)(
+                    &data.stream,
+                    api::StreamBuffers {
+                        output: buffer.as_mut_ptr() as _,
+                        input: ptr::null(),
+                        frames: buffer.len() / 2,
+                    },
+                ); // TODO: channels + sizeof u32
                 ((**queue).Enqueue).unwrap()(
                     queue,
                     buffer.as_mut_ptr() as _,
@@ -248,7 +259,10 @@ impl api::Instance for Instance {
             }
         }
 
-        dbg!("{:?}", (**queue).RegisterCallback.unwrap()(queue, Some(write_cb), data as _));
+        dbg!(
+            "{:?}",
+            (**queue).RegisterCallback.unwrap()(queue, Some(write_cb), data as _)
+        );
 
         // Enqueue one frame to get the ball rolling
         write_cb(queue, data as _);
@@ -264,9 +278,9 @@ impl api::Instance for Instance {
         Ok(())
     }
 
-    unsafe fn set_event_callback<F>(&mut self, callback: Option<F>) -> Result<()>
+    unsafe fn set_event_callback<F>(&mut self, _callback: Option<F>) -> Result<()>
     where
-        F: FnMut(api::Event) + Send + 'static
+        F: FnMut(api::Event) + Send + 'static,
     {
         // only single device
         Ok(())
@@ -295,14 +309,16 @@ pub struct Device {
 
 impl api::Device for Device {
     unsafe fn start(&self) {
-        dbg!(((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_PLAYING as _));
+        dbg!(((**self.state).SetPlayState).unwrap()(
+            self.state,
+            sles::SL_PLAYSTATE_PLAYING as _
+        ));
     }
 
     unsafe fn stop(&self) {
-        dbg!(((**self.state).SetPlayState).unwrap()(self.state, sles::SL_PLAYSTATE_STOPPED as _));
-    }
-
-    unsafe fn submit_buffers(&mut self, _timeout_ms: u32) -> Result<()> {
-        Err(api::Error::Validation)
+        dbg!(((**self.state).SetPlayState).unwrap()(
+            self.state,
+            sles::SL_PLAYSTATE_STOPPED as _
+        ));
     }
 }

@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
         let mut instance = Instance::create("audir - sine");
         instance.set_event_callback(Some(|event| {
             dbg!(event);
-        }));
+        }))?;
 
         let physical_devices = instance.enumerate_physical_devices();
 
@@ -37,13 +37,16 @@ fn main() -> anyhow::Result<()> {
                 .unwrap(),
         };
 
+        let format = instance.physical_device_default_concurrent_format(output_device)?;
+
         println!(
-            "{:X}: {:#?}",
+            "{:X}: {:#?} @ {:#?}",
             output_device,
-            instance.physical_device_properties(output_device)?
+            instance.physical_device_properties(output_device)?,
+            format,
         );
 
-        let sample_rate = 48_000;
+        let sample_rate = format.sample_rate;
         let frequency = 440.0;
         let mut cycle = 0.0;
 
@@ -62,8 +65,9 @@ fn main() -> anyhow::Result<()> {
                 let phase = 2.0 * std::f32::consts::PI * cycle;
                 let sample = phase.sin() * 0.5;
 
-                buffer[num_channels * dt as usize] = sample;
-                buffer[num_channels * dt as usize + 1] = sample;
+                for i in 0..num_channels {
+                    buffer[num_channels * dt as usize + i] = sample;
+                }
 
                 cycle = (cycle + cycle_step) % 1.0;
             }
@@ -73,14 +77,11 @@ fn main() -> anyhow::Result<()> {
             audir::DeviceDesc {
                 physical_device: output_device,
                 sharing: audir::SharingMode::Concurrent,
-                sample_desc: audir::SampleDesc {
-                    format: audir::Format::F32,
-                    sample_rate,
-                },
+                sample_desc: format.sample_desc(),
             },
             audir::Channels {
                 input: audir::ChannelMask::empty(),
-                output: audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT,
+                output: format.channels,
             },
             Box::new(callback),
         )?;

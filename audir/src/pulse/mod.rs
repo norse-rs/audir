@@ -16,7 +16,6 @@ struct PhysicalDevice {
 type PhysicalDeviceMap = HashMap<String, Handle<PhysicalDevice>>;
 
 impl PhysicalDevice {
-    // TOOD: as extension?
     fn default_format(&self) -> Result<api::FrameDesc> {
         let format = match self.sample_spec.format {
             pulse::pa_sample_format_t::F32le => api::Format::F32,
@@ -241,6 +240,14 @@ impl api::Instance for Instance {
         return true;
     }
 
+    unsafe fn physical_device_default_concurrent_format(
+        &self,
+        physical_device: PhysicalDevice,
+    ) -> Result<FrameDesc> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
+        physical_device.default_format()
+    }
+
     unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
@@ -312,7 +319,7 @@ impl api::Instance for Instance {
 
     unsafe fn set_event_callback<F>(&mut self, callback: Option<F>) -> Result<()>
     where
-        F: FnMut(api::Event) + Send + 'static
+        F: FnMut(api::Event) + Send + 'static,
     {
         unimplemented!()
     }

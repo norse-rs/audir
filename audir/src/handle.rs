@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::ops::{Deref, DerefMut};
 
 pub type RawHandle = u64;

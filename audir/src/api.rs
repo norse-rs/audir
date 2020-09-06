@@ -4,13 +4,13 @@ use std::{error, fmt, result};
 
 pub type PhysicalDevice = handle::RawHandle;
 
+pub const DEFAULT_SAMPLE_RATE: usize = 0;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DriverId {
     Wasapi,
     PulseAudio,
     OpenSLES,
-    CoreAudio,
-    WebAudio,
     AAudio,
 }
 
@@ -74,6 +74,7 @@ pub type Frames = usize;
 pub struct PhysicalDeviceProperties {
     pub device_name: String,
     pub streams: StreamFlags,
+    pub form_factor: FormFactor,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -100,6 +101,13 @@ impl FrameDesc {
     pub fn num_channels(&self) -> usize {
         self.channels.bits().count_ones() as _
     }
+
+    pub fn sample_desc(&self) -> SampleDesc {
+        SampleDesc {
+            format: self.format,
+            sample_rate: self.sample_rate,
+        }
+    }
 }
 
 pub struct InstanceProperties {
@@ -124,7 +132,7 @@ impl StreamProperties {
 #[derive(Debug, Clone)]
 pub enum Error {
     DeviceLost,
-    Validation,
+    Validation { description: String },
     Internal { cause: String },
 }
 
@@ -134,9 +142,15 @@ impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
         match *self {
             Error::DeviceLost => writeln!(fmt, "Device lost"),
-            Error::Validation => writeln!(fmt, "Validation error"),
+            Error::Validation { ref description } => writeln!(fmt, "Validation error: {}", description),
             Error::Internal { ref cause } => writeln!(fmt, "Internal: {}", cause),
         }
+    }
+}
+
+impl Error {
+    pub(crate) fn validation<O, T: ToString>(description: T) -> Result<O> {
+        Err(Error::Validation { description: description.to_string() })
     }
 }
 
@@ -145,7 +159,7 @@ pub enum Event {
     Added(PhysicalDevice),
     Removed(PhysicalDevice),
     DefaultInputDevice(Option<PhysicalDevice>),
-    DefaultOutputDevice(Option<PhysicalDevice>)
+    DefaultOutputDevice(Option<PhysicalDevice>),
 }
 
 #[derive(Debug, Clone)]
@@ -198,7 +212,17 @@ pub trait Instance {
         frame_desc: FrameDesc,
     ) -> bool;
 
-    unsafe fn create_device(&self, desc: DeviceDesc, channels: Channels, callback: StreamCallback<Self::Stream>) -> Result<Self::Device>;
+    unsafe fn physical_device_default_concurrent_format(
+        &self,
+        physical_device: PhysicalDevice,
+    ) -> Result<FrameDesc>;
+
+    unsafe fn create_device(
+        &self,
+        desc: DeviceDesc,
+        channels: Channels,
+        callback: StreamCallback<Self::Stream>,
+    ) -> Result<Self::Device>;
 
     unsafe fn create_session(&self, sample_rate: usize) -> Result<Self::Session>;
 
@@ -212,7 +236,7 @@ pub trait Device {
     unsafe fn stop(&self);
 
     unsafe fn submit_buffers(&mut self, _timeout_ms: u32) -> Result<()> {
-        Err(Error::Validation)
+        Error::validation("`submit_buffers` not allowed for callback based instances")
     }
 }
 

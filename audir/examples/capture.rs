@@ -41,7 +41,9 @@ fn main() -> anyhow::Result<()> {
             bits_per_sample: 32,
             sample_format: hound::SampleFormat::Float,
         };
-        let writer = Arc::new(Mutex::new(hound::WavWriter::create("capture.wav", spec).unwrap()));
+        let writer = Arc::new(Mutex::new(
+            hound::WavWriter::create("capture.wav", spec).unwrap(),
+        ));
 
         let wav = writer.clone();
         let callback = move |stream: &<Instance as InstanceTrait>::Stream, buffers| {
@@ -93,7 +95,12 @@ fn main() -> anyhow::Result<()> {
             device.stop();
         }
 
-        Arc::try_unwrap(writer).ok().unwrap().into_inner().unwrap().finalize()?;
+        Arc::try_unwrap(writer)
+            .ok()
+            .unwrap()
+            .into_inner()
+            .unwrap()
+            .finalize()?;
 
         Ok(())
     }

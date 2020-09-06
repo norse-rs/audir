@@ -1,10 +1,8 @@
 use crate::{api, api::Result};
 use ndk::aaudio;
-use std::ptr;
 use std::collections::HashMap;
+use std::ptr;
 use std::sync::Mutex;
-
-const DEFAULT_PHYSICAL_DEVICE: api::PhysicalDevice = ndk_sys::AAUDIO_UNSPECIFIED as _;
 
 struct PhysicalDevice {
     device_name: String,
@@ -27,23 +25,25 @@ impl Instance {
             .get_static_field(class_ctxt, "AUDIO_SERVICE", "Ljava/lang/String;")
             .unwrap();
 
-        let audio_manager = env.call_method(
-            ndk_glue::native_activity().activity(),
-            "getSystemService",
-            "(Ljava/lang/String;)Ljava/lang/Object;",
-            &[audio_service]
-        )
-        .unwrap()
-        .l()
-        .unwrap();
+        let audio_manager = env
+            .call_method(
+                ndk_glue::native_activity().activity(),
+                "getSystemService",
+                "(Ljava/lang/String;)Ljava/lang/Object;",
+                &[audio_service],
+            )
+            .unwrap()
+            .l()
+            .unwrap();
 
-        let devices = env.call_method(
-            audio_manager,
-            "getDevices",
-            "(I)[Landroid/media/AudioDeviceInfo;",
-            &[3.into()] // GET_DEVICES_ALL
-        )
-        .unwrap();
+        let devices = env
+            .call_method(
+                audio_manager,
+                "getDevices",
+                "(I)[Landroid/media/AudioDeviceInfo;",
+                &[3.into()], // GET_DEVICES_ALL
+            )
+            .unwrap();
 
         devices.l().unwrap().into_inner()
     }
@@ -62,12 +62,12 @@ impl api::Instance for Instance {
         }
     }
 
-    unsafe fn create(name: &str) -> Self {
+    unsafe fn create(_name: &str) -> Self {
         let native_activity = ndk_glue::native_activity();
         let vm_ptr = native_activity.vm();
-        let vm = unsafe { jni::JavaVM::from_raw(vm_ptr) }.unwrap();
+        let vm = jni::JavaVM::from_raw(vm_ptr).unwrap();
 
-        let mut instance = Instance {
+        let instance = Instance {
             vm,
             devices: Mutex::new(PhysicalDeviceMap::new()),
         };
@@ -88,7 +88,7 @@ impl api::Instance for Instance {
             let device = env.get_object_array_element(device_array, i).unwrap();
 
             let ty = env.call_method(device, "getType", "()I", &[]).unwrap();
-            let ty_desc = match ty.i().unwrap() {
+            let _ty_desc = match ty.i().unwrap() {
                 1 => "TYPE_BUILTIN_EARPIECE",
                 2 => "TYPE_BUILTIN_SPEAKER",
                 3 => "TYPE_WIRED_HEADSET",
@@ -126,86 +126,97 @@ impl api::Instance for Instance {
             let device_name: String = env.get_string(name.l().unwrap().into()).unwrap().into();
 
             // Sample Rates
-            let sample_rates_array = env.call_method(
-                device,
-                "getSampleRates",
-                "()[I",
-                &[]
-            )
-            .unwrap();
+            let sample_rates_array = env
+                .call_method(device, "getSampleRates", "()[I", &[])
+                .unwrap();
             let sample_rates_array = sample_rates_array.l().unwrap().into_inner();
             let num_sample_rates = env.get_array_length(sample_rates_array).unwrap();
 
             let sample_rates = if num_sample_rates > 0 {
                 let mut sample_rates = vec![0; num_sample_rates as usize];
-                env.get_int_array_region(sample_rates_array, 0, &mut sample_rates).unwrap();
+                env.get_int_array_region(sample_rates_array, 0, &mut sample_rates)
+                    .unwrap();
                 sample_rates
             } else {
                 Vec::new()
             };
 
             // Channel Counts
-            let channel_count_array = env.call_method(
-                device,
-                "getChannelCounts",
-                "()[I",
-                &[]
-            )
-            .unwrap();
+            let channel_count_array = env
+                .call_method(device, "getChannelCounts", "()[I", &[])
+                .unwrap();
             let channel_counts_array = channel_count_array.l().unwrap().into_inner();
             let num_channel_counts = env.get_array_length(channel_counts_array).unwrap();
 
             let channel_counts = if num_channel_counts > 0 {
                 let mut channel_counts = vec![0; num_channel_counts as usize];
-                env.get_int_array_region(channel_counts_array, 0, &mut channel_counts).unwrap();
+                env.get_int_array_region(channel_counts_array, 0, &mut channel_counts)
+                    .unwrap();
                 channel_counts
             } else {
                 Vec::new()
             };
 
             //  Encodings/Formats
-            let encodings_array = env.call_method(
-                device,
-                "getEncodings",
-                "()[I",
-                &[]
-            )
-            .unwrap();
+            let encodings_array = env
+                .call_method(device, "getEncodings", "()[I", &[])
+                .unwrap();
 
             let encodings_array = encodings_array.l().unwrap().into_inner();
             let num_encodings = env.get_array_length(encodings_array).unwrap();
 
             let mut encodings = vec![0; num_encodings as usize];
-            env.get_int_array_region(encodings_array, 0, &mut encodings).unwrap();
+            env.get_int_array_region(encodings_array, 0, &mut encodings)
+                .unwrap();
 
-            let formats = encodings.into_iter().filter_map(|encoding| {
-                match encoding {
-                    // ENCODING_PCM_16BIT
-                    0x2 => Some(api::Format::I16),
-                    // ENCODING_PCM_FLOAT
-                    0x4 => Some(api::Format::F32),
-                    _ => None,
-                }
-            }).collect::<Vec<_>>();
+            let formats = encodings
+                .into_iter()
+                .filter_map(|encoding| {
+                    match encoding {
+                        // ENCODING_PCM_16BIT
+                        0x2 => Some(api::Format::I16),
+                        // ENCODING_PCM_FLOAT
+                        0x4 => Some(api::Format::F32),
+                        _ => None,
+                    }
+                })
+                .collect::<Vec<_>>();
 
             // Stream Flags
             let mut streams = api::StreamFlags::empty();
-            if env.call_method(device, "isSink", "()Z", &[]).unwrap().z().unwrap() {
+            if env
+                .call_method(device, "isSink", "()Z", &[])
+                .unwrap()
+                .z()
+                .unwrap()
+            {
                 streams |= api::StreamFlags::OUTPUT;
             }
-            if env.call_method(device, "isSource", "()Z", &[]).unwrap().z().unwrap() {
+            if env
+                .call_method(device, "isSource", "()Z", &[])
+                .unwrap()
+                .z()
+                .unwrap()
+            {
                 streams |= api::StreamFlags::INPUT;
             }
 
-            let id = env.call_method(device, "getId", "()I", &[]).unwrap().i().unwrap();
+            let id = env
+                .call_method(device, "getId", "()I", &[])
+                .unwrap()
+                .i()
+                .unwrap();
             physical_devices.push(id as _);
-            devices.insert(id, PhysicalDevice {
-                device_name,
-                streams,
-                sample_rates,
-                channel_counts,
-                formats,
-            });
+            devices.insert(
+                id,
+                PhysicalDevice {
+                    device_name,
+                    streams,
+                    sample_rates,
+                    channel_counts,
+                    formats,
+                },
+            );
         }
 
         physical_devices
@@ -242,18 +253,17 @@ impl api::Instance for Instance {
         let devices = self.devices.lock().unwrap();
         let device = &devices[&(physical_device as i32)]; // TODO: check
 
-        Ok(
-            api::PhysicalDeviceProperties {
-                device_name: device.device_name.clone(),
-                streams: device.streams,
-            }
-        )
+        Ok(api::PhysicalDeviceProperties {
+            device_name: device.device_name.clone(),
+            streams: device.streams,
+            form_factor: api::FormFactor::Unknown, // todo
+        })
     }
 
     unsafe fn physical_device_supports_format(
         &self,
         physical_device: api::PhysicalDevice,
-        sharing: api::SharingMode,
+        _sharing: api::SharingMode,
         frame_desc: api::FrameDesc,
     ) -> bool {
         let devices = self.devices.lock().unwrap();
@@ -261,20 +271,42 @@ impl api::Instance for Instance {
 
         let num_channels = frame_desc.channels.bits().count_ones();
 
-        let supports_format = device.formats.iter().find(|&&f| f == frame_desc.format).is_some();
-        let supports_sample_rate = device.sample_rates.is_empty() || device.sample_rates.iter().find(|&&s| s == frame_desc.sample_rate as i32).is_some();
-        let supports_channel_count = device.channel_counts.is_empty() || device.channel_counts.iter().find(|&&c| c == num_channels as i32).is_some();
+        let supports_format = device
+            .formats
+            .iter()
+            .find(|&&f| f == frame_desc.format)
+            .is_some();
+        let supports_sample_rate = device.sample_rates.is_empty()
+            || device
+                .sample_rates
+                .iter()
+                .find(|&&s| s == frame_desc.sample_rate as i32)
+                .is_some();
+        let supports_channel_count = device.channel_counts.is_empty()
+            || device
+                .channel_counts
+                .iter()
+                .find(|&&c| c == num_channels as i32)
+                .is_some();
 
         supports_format && supports_sample_rate && supports_channel_count
+    }
+
+    unsafe fn physical_device_default_concurrent_format(
+        &self,
+        _physical_device: api::PhysicalDevice,
+    ) -> Result<api::FrameDesc> {
+        todo!()
     }
 
     unsafe fn create_device(
         &self,
         desc: api::DeviceDesc,
-        channels: api::Channels,
+        _channels: api::Channels,
         mut callback: api::StreamCallback<Stream>,
     ) -> Result<Device> {
-        let builder = aaudio::AAudioStreamBuilder::new().unwrap()
+        let builder = aaudio::AAudioStreamBuilder::new()
+            .unwrap()
             .device_id(desc.physical_device as _)
             .data_callback(Box::new(move |astream, data, frames| {
                 let num_channels = astream.get_channel_count();
@@ -291,22 +323,27 @@ impl api::Instance for Instance {
                     },
                 };
 
-                callback(&stream, api::StreamBuffers { frames: frames as _, input: ptr::null(), output: data as *mut _ });
+                callback(
+                    &stream,
+                    api::StreamBuffers {
+                        frames: frames as _,
+                        input: ptr::null(),
+                        output: data as *mut _,
+                    },
+                );
                 aaudio::AAudioCallbackResult::Continue
             }));
         let stream = builder.open_stream().unwrap();
-        Ok(Device {
-            stream,
-        })
+        Ok(Device { stream })
     }
 
     unsafe fn create_session(&self, _: usize) -> Result<()> {
         Ok(())
     }
 
-    unsafe fn set_event_callback<F>(&mut self, callback: Option<F>) -> Result<()>
+    unsafe fn set_event_callback<F>(&mut self, _callback: Option<F>) -> Result<()>
     where
-        F: FnMut(api::Event) + Send + 'static
+        F: FnMut(api::Event) + Send + 'static,
     {
         todo!()
     }
@@ -322,10 +359,6 @@ impl api::Device for Device {
     }
     unsafe fn stop(&self) {
         self.stream.request_stop().unwrap();
-    }
-
-    unsafe fn submit_buffers(&mut self, _timeout_ms: u32) -> Result<()> {
-        Err(api::Error::Validation)
     }
 }
 

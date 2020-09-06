@@ -9,9 +9,17 @@ pub use winapi::shared::winerror::HRESULT;
 pub type WasapiResult<T> = (T, HRESULT);
 
 use com::{Guid, WeakPtr};
-use std::{collections::HashMap, ffi::OsString, mem, os::windows::ffi::OsStringExt, ptr, slice, sync::Mutex};
-use winapi::shared::{devpkey::*, ksmedia, minwindef::DWORD, mmreg::*, winerror, wtypes::PROPERTYKEY};
-use winapi::um::{audioclient::*, audiosessiontypes::*, combaseapi::*, coml2api::STGM_READ, mmdeviceapi::*, objbase::COINIT_MULTITHREADED, propsys::*, winnt::*};
+use std::{
+    collections::HashMap, ffi::OsString, mem, os::windows::ffi::OsStringExt, ptr, slice,
+    sync::Mutex,
+};
+use winapi::shared::{
+    devpkey::*, ksmedia, minwindef::DWORD, mmreg::*, winerror, wtypes::PROPERTYKEY,
+};
+use winapi::um::{
+    audioclient::*, audiosessiontypes::*, combaseapi::*, coml2api::STGM_READ, mmdeviceapi::*,
+    objbase::COINIT_MULTITHREADED, propsys::*, winnt::*,
+};
 use winapi::Interface;
 
 use crate::{
@@ -133,7 +141,7 @@ unsafe fn map_waveformat(format: *const WAVEFORMATEX) -> Result<api::FrameDesc> 
                 if subformat == Guid(ksmedia::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT) && samples == 32 {
                     api::Format::F32
                 } else {
-                    return Err(api::Error::Validation); // TODO
+                    return Err(api::Error::Internal { cause: "unsupported format".into() }); // TODO
                 };
 
             let mut channels = api::ChannelMask::empty();
@@ -153,7 +161,7 @@ unsafe fn map_waveformat(format: *const WAVEFORMATEX) -> Result<api::FrameDesc> 
                 sample_rate: wave_format.nSamplesPerSec as _,
             })
         }
-        _ => Err(api::Error::Validation), // TODO
+        _ => Err(api::Error::Internal { cause: "unsupported wave format".into() }), // TODO
     }
 }
 
@@ -309,7 +317,7 @@ impl api::Instance for Instance {
             string_from_wstr(os_str)
         };
 
-        let form_factor = {
+        let _form_factor = {
             let mut value = mem::MaybeUninit::uninit();
             store.GetValue(
                 &PKEY_AudioEndpoint_FormFactor as *const _ as *const _,
@@ -320,8 +328,20 @@ impl api::Instance for Instance {
 
         Ok(api::PhysicalDeviceProperties {
             device_name,
+            form_factor: api::FormFactor::Unknown, // todo
             streams: physical_device.streams,
         })
+    }
+
+    unsafe fn physical_device_default_concurrent_format(
+        &self,
+        physical_device: api::PhysicalDevice,
+    ) -> Result<api::FrameDesc> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
+
+        let mut mix_format = ptr::null_mut();
+        physical_device.audio_client.GetMixFormat(&mut mix_format);
+        map_waveformat(mix_format)
     }
 
     unsafe fn create_device(
@@ -332,7 +352,12 @@ impl api::Instance for Instance {
     ) -> Result<Device> {
         if !channels.input.is_empty() && !channels.output.is_empty() {
             // no duplex
-            return Err(api::Error::Validation);
+            return api::Error::validation("Duplex not supported");
+        }
+
+        let use_default_sample_rate = desc.sample_desc.sample_rate == api::DEFAULT_SAMPLE_RATE;
+        if use_default_sample_rate && desc.sharing == api::SharingMode::Exclusive {
+            return api::Error::validation("Default sample rate can't be used with exclusive sharing mode");
         }
 
         let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
@@ -340,10 +365,20 @@ impl api::Instance for Instance {
 
         let fence = Fence::create(false, false);
 
+        let sample_rate = if use_default_sample_rate {
+            self.physical_device_default_concurrent_format(desc.physical_device)?.sample_rate
+        } else {
+            desc.sample_desc.sample_rate
+        };
+
         let frame_desc = api::FrameDesc {
             format: desc.sample_desc.format,
-            channels: if !channels.input.is_empty() { channels.input } else { channels.output },
-            sample_rate: desc.sample_desc.sample_rate,
+            channels: if !channels.input.is_empty() {
+                channels.input
+            } else {
+                channels.output
+            },
+            sample_rate,
         };
         let mix_format = map_frame_desc(&frame_desc).unwrap(); // todo
         let hr = physical_device.audio_client.Initialize(
@@ -422,7 +457,13 @@ impl api::Instance for Instance {
     }
 
     unsafe fn create_session(&self, sample_rate: usize) -> Result<Session> {
-        let rt_handle = audio_thread_priority::promote_current_thread_to_real_time(0, sample_rate as _).unwrap();
+        if sample_rate == api::DEFAULT_SAMPLE_RATE {
+            return api::Error::validation("Default sample rate can't be used for session creation");
+        }
+
+        let rt_handle =
+            audio_thread_priority::promote_current_thread_to_real_time(0, sample_rate as _)
+                .unwrap();
         Ok(Session(Some(rt_handle)))
     }
 
@@ -431,13 +472,15 @@ impl api::Instance for Instance {
         F: FnMut(api::Event) + Send + 'static,
     {
         if !self.notifier.is_null() {
-            self.raw.UnregisterEndpointNotificationCallback(self.notifier.as_mut_ptr() as *mut _);
+            self.raw
+                .UnregisterEndpointNotificationCallback(self.notifier.as_mut_ptr() as *mut _);
             self.notifier.as_unknown().Release();
         }
 
         if let Some(callback) = callback {
             self.notifier = WeakPtr::from_raw(NotificationClient::create_raw(Box::new(callback)));
-            self.raw.RegisterEndpointNotificationCallback(self.notifier.as_mut_ptr() as *mut _);
+            self.raw
+                .RegisterEndpointNotificationCallback(self.notifier.as_mut_ptr() as *mut _);
         }
 
         Ok(())
@@ -551,7 +594,8 @@ impl std::ops::Drop for Instance {
         unsafe {
             self.raw.Release();
             if !self.notifier.is_null() {
-                WeakPtr::from_raw(self.notifier.as_mut_ptr() as *mut IMMNotificationClient).Release();
+                WeakPtr::from_raw(self.notifier.as_mut_ptr() as *mut IMMNotificationClient)
+                    .Release();
             }
             // TODO: drop audio clients
         }

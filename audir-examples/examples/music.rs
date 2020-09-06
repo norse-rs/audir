@@ -81,11 +81,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 sample_rate,
                 format,
                 channels: output_channels,
-            });
+            },
+        );
         dbg!(supports_format);
 
         let mut sample = 0;
-        let callback = move |stream: &<Instance as InstanceTrait>::Stream, buffers: audir::StreamBuffers| {
+        let callback = move |stream: &<Instance as InstanceTrait>::Stream,
+                             buffers: audir::StreamBuffers| {
             let properties = stream.properties();
             let num_channels = properties.num_channels();
 
