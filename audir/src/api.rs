@@ -2,10 +2,11 @@ use crate::handle;
 
 use std::{error, fmt, result};
 
+/// Opaque physical device handle.
 pub type PhysicalDevice = handle::RawHandle;
 
 pub const DEFAULT_SAMPLE_RATE: usize = 0;
-
+/// Driver Implementations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DriverId {
     Wasapi,
@@ -25,15 +26,31 @@ bitflags::bitflags! {
     }
 }
 
+/// Physical device access.
+///
+/// Sharing mode specifies system-wide access to a physical device resource.
+/// Access is not isolated to the current process or instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SharingMode {
+    /// Exclusive device access.
     Exclusive,
+    /// Concurrent devices access shared by multiple processes.
     Concurrent,
 }
 
+/// Device stream operation mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StreamMode {
+    /// Explicit polling.
+    ///
+    /// Users need to manually execute `submit_buffers` to poll the stream buffers.
+    /// The users are also in control of the audio session in which the stream will be processed.
     Polling,
+
+    /// Callback based stream.
+    ///
+    /// The device internally poll the stream buffers. Audio sessions are automatically created and maintained.
+    /// The execution context of the stream callback is hidden from the users.
     Callback,
 }
 
@@ -84,17 +101,27 @@ pub enum Format {
     U32,
 }
 
+/// Sample description.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct SampleDesc {
+    /// Sample Format.
     pub format: Format,
+    /// Sample Rate.
     pub sample_rate: usize,
 }
 
+/// Frame description.
+///
+/// Consists of a channel mask and a sample description.
+/// A frame is composed of one samples per channel.
 #[derive(Debug, Copy, Clone)]
 pub struct FrameDesc {
+    /// Sample Format.
     pub format: Format,
-    pub channels: ChannelMask,
+    /// Sample Rate.
     pub sample_rate: usize,
+    /// Channel Mask.
+    pub channels: ChannelMask,
 }
 
 impl FrameDesc {
@@ -176,11 +203,21 @@ pub struct Channels {
 }
 
 pub type Result<T> = result::Result<T, Error>;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StreamBuffers {
+    /// Number of frames per buffer.
     pub frames: usize,
+
+    /// Input frame buffer.
+    ///
+    /// For streams with empty input channels the pointer will be null.
+    /// The buffer pointer is aligned according to the stream format requirements.
     pub input: *const (),
+
+    /// Input frame buffer.
+    ///
+    /// For streams with empty output channels the pointer will be null.
+    /// The buffer pointer is aligned according to the stream format requirements.
     pub output: *mut (),
 }
 pub type StreamCallback<S> = Box<dyn FnMut(&S, StreamBuffers) + Send>;
@@ -188,16 +225,31 @@ pub type StreamCallback<S> = Box<dyn FnMut(&S, StreamBuffers) + Send>;
 pub trait Instance {
     type Device: Device;
     type Stream: Stream;
+
+    /// Audio Session
+    ///
+    /// See more details on `create_session`.
     type Session;
 
     unsafe fn properties() -> InstanceProperties;
 
+    /// Create an instance object.
+    ///
+    /// ## Validation
+    ///
+    /// - The instance **must** outlive all its child objects.
     unsafe fn create(name: &str) -> Self;
 
+    /// Retrieve a list of physical devices of the current instance.
+    ///
+    /// The list may vary over time when devices get added or removed.
+    /// Users may track changes manually by registering an event handler.
     unsafe fn enumerate_physical_devices(&self) -> Vec<PhysicalDevice>;
 
+    /// Get the default physical input device.
     unsafe fn default_physical_input_device(&self) -> Option<PhysicalDevice>;
 
+    /// Get the default physical output device.
     unsafe fn default_physical_output_device(&self) -> Option<PhysicalDevice>;
 
     unsafe fn physical_device_properties(
@@ -224,6 +276,18 @@ pub trait Instance {
         callback: StreamCallback<Self::Stream>,
     ) -> Result<Self::Device>;
 
+    /// Create an audio session.
+    ///
+    /// Audio sessions are needed for ensuring realtime properties for audio streaming.
+    /// Callback based instances have an internal executor with the a properly configured audio session.
+    /// After creating a session the current executor thread will have realtime properties for the lifetime of the session.
+    ///
+    /// All polling instances will expose a concurrent default format with a `sample_rate`,
+    /// which is not equal to `DEFAULT_SAMPLE_RATE`.
+    ///
+    /// ## Validation
+    ///
+    /// - `sample_rate` **must** not be `DEFAULT_SAMPLE_RATE`.
     unsafe fn create_session(&self, sample_rate: usize) -> Result<Self::Session>;
 
     unsafe fn set_event_callback<F>(&mut self, callback: Option<F>) -> Result<()>
@@ -235,11 +299,23 @@ pub trait Device {
     unsafe fn start(&self);
     unsafe fn stop(&self);
 
+    /// Submit stream buffers.
+    ///
+    /// This function **must** be called only for devices of a polling instance.
+    /// It will internally wait for acquiring the streaming buffers, call the stream callback
+    /// for reading/writing the buffers and submit these to the audio engine.
+    ///
+    /// ## Validation
+    ///
+    /// - **Must** only be called for devices, which corresponding instance streaming properties are `Polling`.
     unsafe fn submit_buffers(&mut self, _timeout_ms: u32) -> Result<()> {
         Error::validation("`submit_buffers` not allowed for callback based instances")
     }
 }
 
+/// Audio device input/output/duplex stream.
+///
+/// Stream can be only access within a `StreamCallback`.
 pub trait Stream {
     unsafe fn properties(&self) -> StreamProperties;
 }
