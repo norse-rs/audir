@@ -53,22 +53,6 @@ let output_device = match instance.default_physical_output_device() {
         .expect("No output device found"),
 };
 
-// Callback which will be executed by the audio executor.
-let callback = move |stream: &<Instance as InstanceTrait>::Stream, buffers| {
-    let properties = stream.properties();
-
-    let sample_rate = properties.sample_rate as f32;
-    let num_channels = properties.num_channels();
-
-    let audir::StreamBuffers { output, frames, .. } = buffers;
-    let buffer =
-        std::slice::from_raw_parts_mut(output as *mut f32, frames as usize * num_channels);
-
-    for dt in 0..frames {
-        // fill buffers..
-    }
-};
-
 let sample_rate = 48_000;
 let mut device = instance.create_device(
     // Concurrent access to selected output device
@@ -85,21 +69,40 @@ let mut device = instance.create_device(
         input: audir::ChannelMask::empty(),
         output: audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT,
     },
-    Box::new(callback),
+    // Callback which will be executed by the audio executor.
+    Box::new(move |stream| {
+        let properties = stream.properties();
+
+        let sample_rate = properties.sample_rate as f32;
+        let num_channels = properties.num_channels();
+
+        let audir::StreamBuffers { output, frames, .. } = stream.buffers;
+        let buffer =
+            std::slice::from_raw_parts_mut(output as *mut f32, frames as usize * num_channels);
+
+        for dt in 0..frames {
+            // fill buffers..
+        }
+    }),
 )?;
 
-// Configure the current thread for audio execution (for polling).
-let _session = instance.create_session(sample_rate)?;
-
-// Start playback
-device.start();
-
-loop {
-    // Backends may support Polling or Callback streaming mode.
-    // In case of polling we manually control the playback loop and the executor,
-    // otherwise the device will automatically do the audio processing.
-    if instance_properties.stream_mode == audir::StreamMode::Polling {
-        device.submit_buffers(!0)?;
+match instance_properties.stream_mode {
+    audir::StreamMode::Polling => {
+        // Configure the current thread for audio execution (for polling).
+        let _session = instance.create_session(sample_rate)?;
+        // Start playback
+        device.start();
+        loop {
+            // Backends may support Polling or Callback streaming mode.
+            // In case of polling we manually control the playback loop and the executor,
+            // otherwise the device will automatically do the audio processing.
+            device.submit_buffers(!0)?;
+        }
+    }
+    audir::StreamMode::Callback => {
+        // Start playback
+        device.start();
+        loop { }
     }
 }
 ```
