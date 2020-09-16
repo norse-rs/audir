@@ -8,10 +8,11 @@ workspace = ".."
 [features]
 aaudio = []
 opensles = []
+music = []
 
 [[example]]
-name = "music"
-crate-type = ["cdylib"]
+name = "android"
+crate-type = ["dylib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -24,3 +25,4 @@ ndk-glue = "0.1.1"
 
 [package.metadata.android]
 assets = "assets"
+apk_label = "audir-examples"

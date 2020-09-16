@@ -3,7 +3,9 @@ use audir::pulse::Instance;
 #[cfg(windows)]
 use audir::wasapi::Instance;
 
-use audir::{Device, Instance as InstanceTrait, Stream};
+use audir::{Device, Instance as InstanceTrait};
+
+use dasp::signal::Signal;
 
 fn main() -> anyhow::Result<()> {
     unsafe {
@@ -48,31 +50,8 @@ fn main() -> anyhow::Result<()> {
 
         let sample_rate = format.sample_rate;
         let frequency = 440.0;
-        let mut cycle = 0.0;
 
-        let callback = move |stream: &<Instance as InstanceTrait>::Stream, buffers| {
-            let properties = stream.properties();
-
-            let sample_rate = properties.sample_rate as f32;
-            let num_channels = properties.num_channels();
-            let cycle_step = frequency / sample_rate;
-
-            let audir::StreamBuffers { output, frames, .. } = buffers;
-            let buffer =
-                std::slice::from_raw_parts_mut(output as *mut f32, frames as usize * num_channels);
-
-            for dt in 0..frames {
-                let phase = 2.0 * std::f32::consts::PI * cycle;
-                let sample = phase.sin() * 0.5;
-
-                for i in 0..num_channels {
-                    buffer[num_channels * dt as usize + i] = sample;
-                }
-
-                cycle = (cycle + cycle_step) % 1.0;
-            }
-        };
-
+        let mut source = None;
         let mut device = instance.create_device(
             audir::DeviceDesc {
                 physical_device: output_device,
@@ -83,16 +62,40 @@ fn main() -> anyhow::Result<()> {
                 input: audir::ChannelMask::empty(),
                 output: format.channels,
             },
-            Box::new(callback),
+            Box::new(move |stream| {
+                let sample_rate = stream.properties.sample_rate as f32;
+                let num_channels = stream.properties.num_channels();
+
+                source = Some(match source.take() {
+                    Some(source) => source,
+                    None => dasp::signal::rate(sample_rate as _).const_hz(frequency).sine()
+                });
+                let source = source.as_mut().unwrap();
+
+                let audir::StreamBuffers { output, frames, .. } = stream.buffers;
+                let buffer =
+                    std::slice::from_raw_parts_mut(output as *mut f32, frames as usize * num_channels);
+
+                for dt in 0..frames {
+                    let sample = source.next() as f32 * 0.5;
+                    for i in 0..num_channels {
+                        buffer[num_channels * dt as usize + i] = sample;
+                    }
+                }
+            }),
         )?;
 
-        let _session = instance.create_session(sample_rate)?;
-
-        device.start();
-
-        loop {
-            if instance_properties.stream_mode == audir::StreamMode::Polling {
-                device.submit_buffers(!0)?;
+        match instance_properties.stream_mode {
+            audir::StreamMode::Polling => {
+                let _session = instance.create_session(sample_rate)?;
+                device.start();
+                loop {
+                    device.submit_buffers(!0)?;
+                }
+            }
+            audir::StreamMode::Callback => {
+                device.start();
+                loop { }
             }
         }
     }

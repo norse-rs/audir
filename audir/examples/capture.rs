@@ -3,7 +3,7 @@ use audir::pulse::Instance;
 #[cfg(windows)]
 use audir::wasapi::Instance;
 
-use audir::{Device, Instance as InstanceTrait, Stream};
+use audir::{Device, Instance as InstanceTrait};
 
 use std::sync::{Arc, Mutex};
 
@@ -46,11 +46,10 @@ fn main() -> anyhow::Result<()> {
         ));
 
         let wav = writer.clone();
-        let callback = move |stream: &<Instance as InstanceTrait>::Stream, buffers| {
-            let properties = stream.properties();
-            let num_channels = properties.num_channels();
+        let callback = move |stream| {
+            let num_channels = stream.properties.num_channels();
 
-            let audir::StreamBuffers { input, frames, .. } = buffers;
+            let audir::StreamBuffers { input, frames, .. } = stream.buffers;
             let buffer =
                 std::slice::from_raw_parts(input as *const f32, frames as usize * num_channels);
 
@@ -77,18 +76,20 @@ fn main() -> anyhow::Result<()> {
                 Box::new(callback),
             )?;
 
-            let _session = instance.create_session(sample_rate)?;
+            let start = std::time::Instant::now();
+            let duration = std::time::Duration::from_secs(4);
 
-            device.start();
-
-            let mut start = std::time::Instant::now();
-            loop {
-                if start.elapsed() > std::time::Duration::from_secs(4) {
-                    break;
+            match instance_properties.stream_mode {
+                audir::StreamMode::Polling => {
+                    let _session = instance.create_session(sample_rate)?;
+                    device.start();
+                    while start.elapsed() > duration {
+                        device.submit_buffers(!0)?;
+                    }
                 }
-
-                if instance_properties.stream_mode == audir::StreamMode::Polling {
-                    device.submit_buffers(!0)?;
+                audir::StreamMode::Callback => {
+                    device.start();
+                    while start.elapsed() > duration { }
                 }
             }
 

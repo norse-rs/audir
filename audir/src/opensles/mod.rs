@@ -22,8 +22,8 @@ fn map_channel_mask(mask: api::ChannelMask) -> sles::SLuint32 {
 struct CallbackData {
     buffers: Vec<Vec<u32>>,
     cur_buffer: usize,
-    callback: api::StreamCallback<Stream>,
-    stream: Stream,
+    callback: api::StreamCallback,
+    frame_desc: api::FrameDesc,
 }
 
 pub struct Instance {
@@ -33,7 +33,6 @@ pub struct Instance {
 
 impl api::Instance for Instance {
     type Device = Device;
-    type Stream = Stream;
     type Session = ();
 
     unsafe fn properties() -> api::InstanceProperties {
@@ -111,7 +110,7 @@ impl api::Instance for Instance {
         &self,
         desc: api::DeviceDesc,
         channels: api::Channels,
-        callback: api::StreamCallback<Stream>,
+        callback: api::StreamCallback,
     ) -> Result<Self::Device> {
         assert_eq!(desc.physical_device, DEFAULT_PHYSICAL_DEVICE);
         assert_eq!(desc.sharing, api::SharingMode::Concurrent);
@@ -221,19 +220,17 @@ impl api::Instance for Instance {
             })
             .collect();
 
-        let stream = Stream {
-            frame_desc: api::FrameDesc {
-                format: desc.sample_desc.format,
-                channels: channels.output,
-                sample_rate: desc.sample_desc.sample_rate,
-            },
+        let frame_desc = api::FrameDesc {
+            format: desc.sample_desc.format,
+            channels: channels.output,
+            sample_rate: desc.sample_desc.sample_rate,
         };
 
         let data = Box::new(CallbackData {
             buffers,
             cur_buffer: 0,
             callback,
-            stream,
+            frame_desc,
         });
         let data = Box::into_raw(data); // TODO: destroy
 
@@ -243,14 +240,20 @@ impl api::Instance for Instance {
                 data.cur_buffer = (data.cur_buffer + 1) % data.buffers.len();
                 let buffer = &mut data.buffers[data.cur_buffer];
 
-                (data.callback)(
-                    &data.stream,
-                    api::StreamBuffers {
+                let stream = api::Stream {
+                    properties: api::StreamProperties {
+                        channels: data.frame_desc.channels,
+                        sample_rate: data.frame_desc.sample_rate,
+                        buffer_size: BUFFER_NUM_FRAMES,
+                    },
+                    buffers: api::StreamBuffers {
                         output: buffer.as_mut_ptr() as _,
                         input: ptr::null(),
-                        frames: buffer.len() / 2,
+                        frames: buffer.len() / data.frame_desc.channels.bits().count_ones() as usize,
                     },
-                ); // TODO: channels + sizeof u32
+                };
+
+                (data.callback)(stream); // TODO: sizeof u32
                 ((**queue).Enqueue).unwrap()(
                     queue,
                     buffer.as_mut_ptr() as _,
@@ -271,6 +274,7 @@ impl api::Instance for Instance {
             engine: self.engine,
             state,
             queue,
+            frame_desc,
         })
     }
 
@@ -287,24 +291,11 @@ impl api::Instance for Instance {
     }
 }
 
-pub struct Stream {
-    frame_desc: api::FrameDesc,
-}
-
-impl api::Stream for Stream {
-    unsafe fn properties(&self) -> api::StreamProperties {
-        api::StreamProperties {
-            channels: self.frame_desc.channels,
-            sample_rate: self.frame_desc.sample_rate,
-            buffer_size: BUFFER_NUM_FRAMES,
-        }
-    }
-}
-
 pub struct Device {
     engine: sles::SLEngineItf,
     state: sles::SLPlayItf,
     queue: sles::SLAndroidSimpleBufferQueueItf,
+    frame_desc: api::FrameDesc,
 }
 
 impl api::Device for Device {
@@ -320,5 +311,13 @@ impl api::Device for Device {
             self.state,
             sles::SL_PLAYSTATE_STOPPED as _
         ));
+    }
+
+    unsafe fn stream_properties(&self) -> api::StreamProperties {
+        api::StreamProperties {
+            channels: self.frame_desc.channels,
+            sample_rate: self.frame_desc.sample_rate,
+            buffer_size: BUFFER_NUM_FRAMES,
+        }
     }
 }

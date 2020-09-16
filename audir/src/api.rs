@@ -142,20 +142,6 @@ pub struct InstanceProperties {
     pub stream_mode: StreamMode,
     pub sharing: SharingModeFlags,
 }
-
-#[derive(Debug, Clone)]
-pub struct StreamProperties {
-    pub channels: ChannelMask,
-    pub sample_rate: usize,
-    pub buffer_size: Frames,
-}
-
-impl StreamProperties {
-    pub fn num_channels(&self) -> usize {
-        self.channels.bits().count_ones() as _
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum Error {
     DeviceLost,
@@ -203,6 +189,25 @@ pub struct Channels {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+pub struct Stream {
+    pub properties: StreamProperties,
+    pub buffers: StreamBuffers,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct StreamProperties {
+    pub channels: ChannelMask,
+    pub sample_rate: usize,
+    pub buffer_size: Frames,
+}
+
+impl StreamProperties {
+    pub fn num_channels(&self) -> usize {
+        self.channels.bits().count_ones() as _
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StreamBuffers {
     /// Number of frames per buffer.
@@ -220,11 +225,11 @@ pub struct StreamBuffers {
     /// The buffer pointer is aligned according to the stream format requirements.
     pub output: *mut (),
 }
-pub type StreamCallback<S> = Box<dyn FnMut(&S, StreamBuffers) + Send>;
+
+pub type StreamCallback = Box<dyn FnMut(Stream) + Send>;
 
 pub trait Instance {
     type Device: Device;
-    type Stream: Stream;
 
     /// Audio Session
     ///
@@ -273,7 +278,7 @@ pub trait Instance {
         &self,
         desc: DeviceDesc,
         channels: Channels,
-        callback: StreamCallback<Self::Stream>,
+        callback: StreamCallback,
     ) -> Result<Self::Device>;
 
     /// Create an audio session.
@@ -299,6 +304,8 @@ pub trait Device {
     unsafe fn start(&self);
     unsafe fn stop(&self);
 
+    unsafe fn stream_properties(&self) -> StreamProperties;
+
     /// Submit stream buffers.
     ///
     /// This function **must** be called only for devices of a polling instance.
@@ -311,11 +318,4 @@ pub trait Device {
     unsafe fn submit_buffers(&mut self, _timeout_ms: u32) -> Result<()> {
         Error::validation("`submit_buffers` not allowed for callback based instances")
     }
-}
-
-/// Audio device input/output/duplex stream.
-///
-/// Stream can be only access within a `StreamCallback`.
-pub trait Stream {
-    unsafe fn properties(&self) -> StreamProperties;
 }

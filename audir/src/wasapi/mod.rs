@@ -186,13 +186,6 @@ impl PhysicalDevice {
         self.device.GetState(&mut state);
         state
     }
-
-    // TODO: extension?
-    // unsafe fn mix_format(&self) -> Result<api::FrameDesc> {
-    //     let mut mix_format = ptr::null_mut();
-    //     self.audio_client.GetMixFormat(&mut mix_format);
-    //     map_waveformat(mix_format)
-    // }
 }
 
 type PhysicalDeviceId = String;
@@ -216,7 +209,6 @@ pub struct Instance {
 
 impl api::Instance for Instance {
     type Device = Device;
-    type Stream = Stream;
     type Session = Session;
 
     unsafe fn properties() -> api::InstanceProperties {
@@ -348,7 +340,7 @@ impl api::Instance for Instance {
         &self,
         desc: api::DeviceDesc,
         channels: api::Channels,
-        callback: api::StreamCallback<Stream>,
+        callback: api::StreamCallback,
     ) -> Result<Device> {
         if !channels.input.is_empty() && !channels.output.is_empty() {
             // no duplex
@@ -381,7 +373,7 @@ impl api::Instance for Instance {
             sample_rate,
         };
         let mix_format = map_frame_desc(&frame_desc).unwrap(); // todo
-        let hr = physical_device.audio_client.Initialize(
+        let _hr = physical_device.audio_client.Initialize(
             sharing,
             AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
             0,
@@ -389,7 +381,6 @@ impl api::Instance for Instance {
             &mix_format as *const _ as _,
             ptr::null(),
         );
-        println!("{:#x}", hr);
 
         physical_device.audio_client.SetEventHandle(fence.0);
 
@@ -397,7 +388,7 @@ impl api::Instance for Instance {
         physical_device.audio_client.GetMixFormat(&mut mix_format);
         let frame_desc = map_waveformat(mix_format).unwrap();
 
-        let (stream, device_stream) = if !channels.input.is_empty() {
+        let (properties, device_stream) = if !channels.input.is_empty() {
             let mut capture_client = WeakPtr::<IAudioCaptureClient>::null();
             physical_device.audio_client.GetService(
                 &IAudioCaptureClient::uuidof(),
@@ -409,18 +400,16 @@ impl api::Instance for Instance {
                 size
             };
 
-            let stream = Stream {
-                properties: api::StreamProperties {
-                    channels: frame_desc.channels,
-                    sample_rate: frame_desc.sample_rate,
-                    buffer_size: buffer_size as _,
-                },
+            let properties = api::StreamProperties {
+                channels: frame_desc.channels,
+                sample_rate: frame_desc.sample_rate,
+                buffer_size: buffer_size as _,
             };
             let device_stream = DeviceStream::Input {
                 client: capture_client,
             };
 
-            (stream, device_stream)
+            (properties, device_stream)
         } else {
             let mut render_client = WeakPtr::<IAudioRenderClient>::null();
             physical_device
@@ -432,19 +421,17 @@ impl api::Instance for Instance {
                 size
             };
 
-            let stream = Stream {
-                properties: api::StreamProperties {
-                    channels: frame_desc.channels,
-                    sample_rate: frame_desc.sample_rate,
-                    buffer_size: buffer_size as _,
-                },
+            let properties = api::StreamProperties {
+                channels: frame_desc.channels,
+                sample_rate: frame_desc.sample_rate,
+                buffer_size: buffer_size as _,
             };
             let device_stream = DeviceStream::Output {
                 client: render_client,
                 buffer_size,
             };
 
-            (stream, device_stream)
+            (properties, device_stream)
         };
 
         Ok(Device {
@@ -452,7 +439,7 @@ impl api::Instance for Instance {
             fence,
             device_stream,
             callback,
-            stream,
+            properties,
         })
     }
 
@@ -612,15 +599,12 @@ pub enum DeviceStream {
     },
 }
 
-pub struct Stream {
-    properties: api::StreamProperties,
-}
 pub struct Device {
     client: WeakPtr<IAudioClient>,
     fence: Fence,
     device_stream: DeviceStream,
-    callback: api::StreamCallback<Stream>,
-    stream: Stream,
+    callback: api::StreamCallback,
+    properties: api::StreamProperties,
 }
 
 impl std::ops::Drop for Device {
@@ -705,15 +689,16 @@ impl api::Device for Device {
         self.client.Stop();
     }
 
+    unsafe fn stream_properties(&self) -> api::StreamProperties {
+        self.properties
+    }
+
     unsafe fn submit_buffers(&mut self, timeout_ms: u32) -> Result<()> {
         let buffers = self.acquire_buffers(timeout_ms)?;
-        (self.callback)(&self.stream, buffers);
+        (self.callback)(api::Stream {
+            properties: self.properties,
+            buffers,
+        });
         self.release_buffers(buffers.frames)
-    }
-}
-
-impl api::Stream for Stream {
-    unsafe fn properties(&self) -> api::StreamProperties {
-        self.properties.clone()
     }
 }

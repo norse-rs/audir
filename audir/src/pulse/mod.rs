@@ -252,7 +252,7 @@ impl api::Instance for Instance {
         &self,
         desc: api::DeviceDesc,
         channels: api::Channels,
-        callback: api::StreamCallback<Stream>,
+        callback: api::StreamCallback,
     ) -> Result<Self::Device> {
         let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
 
@@ -346,7 +346,7 @@ pub struct Device {
     stream: *mut pulse::pa_stream,
     cur_buffer: *mut c_void,
     frame_size: usize,
-    callback: api::StreamCallback<Stream>,
+    callback: api::StreamCallback,
 }
 
 impl Device {
@@ -394,17 +394,7 @@ impl api::Device for Device {
         println!("Device::stop unimplemented");
     }
 
-    unsafe fn submit_buffers(&mut self, timeout_ms: u32) -> Result<()> {
-        let buffers = self.acquire_buffers(timeout_ms)?;
-        (self.callback)(&Stream(self.stream), buffers);
-        self.release_buffers(buffers.frames)
-    }
-}
-
-pub struct Stream(*mut pulse::pa_stream);
-
-impl api::Stream for Stream {
-    unsafe fn properties(&self) -> api::StreamProperties {
+    unsafe fn stream_properties(&self) -> api::StreamProperties {
         let stream = self.0;
 
         let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(stream);
@@ -416,5 +406,14 @@ impl api::Stream for Stream {
             sample_rate: sample_spec.rate as _,
             buffer_size: buffer_attrs.minreq as _,
         }
+    }
+
+    unsafe fn submit_buffers(&mut self, timeout_ms: u32) -> Result<()> {
+        let buffers = self.acquire_buffers(timeout_ms)?;
+        (self.callback)(api::Stream {
+            properties: self.stream_properties(),
+            buffers,
+        });
+        self.release_buffers(buffers.frames)
     }
 }

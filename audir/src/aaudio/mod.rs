@@ -51,7 +51,6 @@ impl Instance {
 
 impl api::Instance for Instance {
     type Device = Device;
-    type Stream = Stream;
     type Session = ();
 
     unsafe fn properties() -> api::InstanceProperties {
@@ -303,33 +302,21 @@ impl api::Instance for Instance {
         &self,
         desc: api::DeviceDesc,
         _channels: api::Channels,
-        mut callback: api::StreamCallback<Stream>,
+        mut callback: api::StreamCallback,
     ) -> Result<Device> {
         let builder = aaudio::AAudioStreamBuilder::new()
             .unwrap()
             .device_id(desc.physical_device as _)
             .data_callback(Box::new(move |astream, data, frames| {
-                let num_channels = astream.get_channel_count();
-                let channels = if num_channels == 2 {
-                    api::ChannelMask::FRONT_LEFT | api::ChannelMask::FRONT_RIGHT
-                } else {
-                    unimplemented!()
-                };
-                let stream = Stream {
-                    properties: api::StreamProperties {
-                        channels,
-                        sample_rate: astream.get_sample_rate() as _,
-                        buffer_size: astream.get_buffer_size_in_frames() as _,
-                    },
-                };
-
                 callback(
-                    &stream,
-                    api::StreamBuffers {
-                        frames: frames as _,
-                        input: ptr::null(),
-                        output: data as *mut _,
-                    },
+                    api::Stream {
+                        properties: get_stream_properties(&astream),
+                        buffers: api::StreamBuffers {
+                            frames: frames as _,
+                            input: ptr::null(),
+                            output: data as *mut _,
+                        },
+                    }
                 );
                 aaudio::AAudioCallbackResult::Continue
             }));
@@ -349,6 +336,20 @@ impl api::Instance for Instance {
     }
 }
 
+unsafe fn get_stream_properties(stream: &aaudio::AAudioStream) -> api::StreamProperties {
+    let num_channels = stream.get_channel_count();
+    let channels = if num_channels == 2 {
+        api::ChannelMask::FRONT_LEFT | api::ChannelMask::FRONT_RIGHT
+    } else {
+        unimplemented!()
+    };
+    api::StreamProperties {
+        channels,
+        sample_rate: stream.get_sample_rate() as _,
+        buffer_size: stream.get_buffer_size_in_frames() as _,
+    }
+}
+
 pub struct Device {
     stream: aaudio::AAudioStream,
 }
@@ -360,14 +361,8 @@ impl api::Device for Device {
     unsafe fn stop(&self) {
         self.stream.request_stop().unwrap();
     }
-}
 
-pub struct Stream {
-    properties: api::StreamProperties,
-}
-
-impl api::Stream for Stream {
-    unsafe fn properties(&self) -> api::StreamProperties {
-        self.properties.clone()
+    unsafe fn stream_properties(&self) -> api::StreamProperties {
+        get_stream_properties(&self.stream)
     }
 }

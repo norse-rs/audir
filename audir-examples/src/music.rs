@@ -1,13 +1,5 @@
-#[cfg(all(target_os = "android", feature = "aaudio"))]
-use audir::aaudio::Instance;
-#[cfg(all(target_os = "android", feature = "opensles"))]
-use audir::opensles::Instance;
-#[cfg(target_os = "linux")]
-use audir::pulse::Instance;
-#[cfg(windows)]
-use audir::wasapi::Instance;
-
-use audir::{Device, Instance as InstanceTrait, Stream};
+use crate::Instance;
+use audir::{Device, Instance as InstanceTrait};
 
 #[cfg(target_os = "android")]
 use std::path::Path;
@@ -29,7 +21,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> Vec<u8> {
     data
 }
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
+pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "android"))]
     let mut audio_stream = {
         let file_path = std::env::args()
@@ -83,27 +75,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 channels: output_channels,
             },
         );
-        dbg!(supports_format);
 
         let mut sample = 0;
-        let callback = move |stream: &<Instance as InstanceTrait>::Stream,
-                             buffers: audir::StreamBuffers| {
-            let properties = stream.properties();
-            let num_channels = properties.num_channels();
-
-            let buffer = std::slice::from_raw_parts_mut(
-                buffers.output as *mut f32,
-                buffers.frames as usize * num_channels,
-            );
-
-            for dt in 0..buffers.frames as usize {
-                let frame = samples[sample];
-                buffer[num_channels * dt as usize] = frame[0];
-                buffer[num_channels * dt as usize + 1] = frame[1];
-                sample = (sample + 1) % samples.len();
-            }
-        };
-
         let mut device = instance.create_device(
             audir::DeviceDesc {
                 physical_device: output_device,
@@ -117,7 +90,22 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 input: audir::ChannelMask::empty(),
                 output: output_channels,
             },
-            Box::new(callback),
+            Box::new(move |stream| {
+                let properties = stream.properties;
+                let num_channels = properties.num_channels();
+
+                let buffer = std::slice::from_raw_parts_mut(
+                    stream.buffers.output as *mut f32,
+                    stream.buffers.frames as usize * num_channels,
+                );
+
+                for dt in 0..stream.buffers.frames as usize {
+                    let frame = samples[sample];
+                    buffer[num_channels * dt as usize] = frame[0];
+                    buffer[num_channels * dt as usize + 1] = frame[1];
+                    sample = (sample + 1) % samples.len();
+                }
+            }),
         )?;
 
         device.start();
@@ -128,9 +116,4 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-}
-
-#[cfg_attr(target_os = "android", ndk_glue::main(backtrace))]
-pub fn main() {
-    run().unwrap()
 }
