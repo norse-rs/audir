@@ -45,21 +45,8 @@ fn main() -> anyhow::Result<()> {
             hound::WavWriter::create("capture.wav", spec).unwrap(),
         ));
 
-        let wav = writer.clone();
-        let callback = move |stream| {
-            let num_channels = stream.properties.num_channels();
-
-            let audir::StreamBuffers { input, frames, .. } = stream.buffers;
-            let buffer =
-                std::slice::from_raw_parts(input as *const f32, frames as usize * num_channels);
-
-            let mut writer = wav.lock().unwrap();
-            for sample in buffer {
-                writer.write_sample(*sample).unwrap();
-            }
-        };
-
         {
+            let wav = writer.clone();
             let mut device = instance.create_device(
                 audir::DeviceDesc {
                     physical_device: input_device,
@@ -73,7 +60,18 @@ fn main() -> anyhow::Result<()> {
                     input: audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT,
                     output: audir::ChannelMask::empty(),
                 },
-                Box::new(callback),
+                Box::new(move |stream| {
+                    let num_channels = stream.properties.num_channels();
+
+                    let audir::StreamBuffers { input, frames, .. } = stream.buffers;
+                    let buffer =
+                        std::slice::from_raw_parts(input as *const f32, frames as usize * num_channels);
+
+                    let mut writer = wav.lock().unwrap();
+                    for sample in buffer {
+                        writer.write_sample(*sample).unwrap();
+                    }
+                }),
             )?;
 
             let start = std::time::Instant::now();
@@ -83,13 +81,13 @@ fn main() -> anyhow::Result<()> {
                 audir::StreamMode::Polling => {
                     let _session = instance.create_session(sample_rate)?;
                     device.start();
-                    while start.elapsed() > duration {
+                    while start.elapsed() < duration {
                         device.submit_buffers(!0)?;
                     }
                 }
                 audir::StreamMode::Callback => {
                     device.start();
-                    while start.elapsed() > duration { }
+                    while start.elapsed() < duration { }
                 }
             }
 
