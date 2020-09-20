@@ -25,9 +25,14 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "android"))]
     let mut audio_stream = {
         let file_path = std::env::args()
-            .nth(1)
-            .expect("No arg found. Please specify a file to open.");
-        audrey::open(file_path)?
+            .nth(1);
+        match file_path {
+            Some(path) => audrey::open(path)?,
+            None => {
+                println!("Error: No arg found. Please specify a file to open.");
+                return Ok(());
+            }
+        }
     };
 
     #[cfg(target_os = "android")]
@@ -60,13 +65,11 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap(),
         };
 
-        dbg!(instance.physical_device_properties(output_device)?);
-
         let sample_rate = 48_000;
         let format = audir::Format::F32;
         let output_channels = audir::ChannelMask::FRONT_LEFT | audir::ChannelMask::FRONT_RIGHT;
 
-        let supports_format = instance.physical_device_supports_format(
+        assert!(instance.physical_device_supports_format(
             output_device,
             audir::SharingMode::Concurrent,
             audir::FrameDesc {
@@ -74,7 +77,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 format,
                 channels: output_channels,
             },
-        );
+        ));
 
         let mut sample = 0;
         let mut device = instance.create_device(

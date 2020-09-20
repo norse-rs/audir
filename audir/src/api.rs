@@ -21,7 +21,9 @@ bitflags::bitflags! {
     /// Other applications and instance may access the same physical device
     /// concurrently or the application requires exclusive access to the certain device.
     pub struct SharingModeFlags: u32 {
+        /// Exclusive device access flag.
         const EXCLUSIVE = 0b01;
+        /// Concurrent devices access shared by multiple processes flag.
         const CONCURRENT = 0b10;
     }
 }
@@ -125,10 +127,12 @@ pub struct FrameDesc {
 }
 
 impl FrameDesc {
+    /// Number of channels for the channel mask.
     pub fn num_channels(&self) -> usize {
         self.channels.bits().count_ones() as _
     }
 
+    /// Sample descriptor.
     pub fn sample_desc(&self) -> SampleDesc {
         SampleDesc {
             format: self.format,
@@ -137,15 +141,29 @@ impl FrameDesc {
     }
 }
 
+/// Properties of the instance implementation.
+#[derive(Debug, Clone, Copy)]
 pub struct InstanceProperties {
+    /// Driver identifier.
     pub driver_id: DriverId,
+
+    /// Operation mode of the device stream.
     pub stream_mode: StreamMode,
+
+    /// Device sharing modes.
     pub sharing: SharingModeFlags,
 }
 #[derive(Debug, Clone)]
 pub enum Error {
+    /// Device Lost
     DeviceLost,
+
+    /// Validation error.
+    ///
+    /// Denote errors caused by incorrect API usage.
     Validation { description: String },
+
+    /// Internal implementation errors.
     Internal { cause: String },
 }
 
@@ -166,6 +184,8 @@ impl Error {
         Err(Error::Validation { description: description.to_string() })
     }
 }
+
+pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -188,13 +208,7 @@ pub struct Channels {
     pub output: ChannelMask,
 }
 
-pub type Result<T> = result::Result<T, Error>;
-
-pub struct Stream {
-    pub properties: StreamProperties,
-    pub buffers: StreamBuffers,
-}
-
+/// Device Stream properties.
 #[derive(Debug, Clone, Copy)]
 pub struct StreamProperties {
     pub channels: ChannelMask,
@@ -226,6 +240,11 @@ pub struct StreamBuffers {
     pub output: *mut (),
 }
 
+pub struct Stream {
+    pub properties: StreamProperties,
+    pub buffers: StreamBuffers,
+}
+
 pub type StreamCallback = Box<dyn FnMut(Stream) + Send>;
 
 pub trait Instance {
@@ -236,6 +255,7 @@ pub trait Instance {
     /// See more details on `create_session`.
     type Session;
 
+    /// Get instance properties.
     unsafe fn properties() -> InstanceProperties;
 
     /// Create an instance object.
@@ -257,11 +277,21 @@ pub trait Instance {
     /// Get the default physical output device.
     unsafe fn default_physical_output_device(&self) -> Option<PhysicalDevice>;
 
+    /// Get physical device properties.
+    ///
+    /// ## Validation
+    ///
+    /// - `physical_device` **must** be a valid handle.
     unsafe fn physical_device_properties(
         &self,
         physical_device: PhysicalDevice,
     ) -> Result<PhysicalDeviceProperties>;
 
+    /// Check format support for a physical device.
+    ///
+    /// ## Validation
+    ///
+    /// - `physical_device` **must** be a valid handle.
     unsafe fn physical_device_supports_format(
         &self,
         physical_device: PhysicalDevice,
@@ -269,11 +299,33 @@ pub trait Instance {
         frame_desc: FrameDesc,
     ) -> bool;
 
+    /// Get default concurrent mode format.
+    ///
+    /// Returns the default format used for physical devices when
+    /// used with concurrent sharing mode.
+    ///
+    /// ## Validation
+    ///
+    /// - `physical_device` **must** be a valid handle.
     unsafe fn physical_device_default_concurrent_format(
         &self,
         physical_device: PhysicalDevice,
     ) -> Result<FrameDesc>;
 
+    /// Create a new logical device.
+    ///
+    /// A logical device with an associated stream will be created
+    /// from a physical device.
+    ///
+    /// ## Validation
+    ///
+    /// - `physical_device` **must** be a valid handle.
+    /// - If the device properties does not include `StreamFlags::INPUT`, the input channel mask must be empty.
+    /// - If the device properties does not include `StreamFlags::OUTPUT`, the output channel mask must be empty.
+    /// - If output channel mask is not empty, the format consisting of sample desc and output channel mask
+    ///   **must** be supported by this physical device.
+    /// - If input channel mask is not empty, the format consisting of sample desc and input channel mask
+    ///   **must** be supported by this physical device.
     unsafe fn create_device(
         &self,
         desc: DeviceDesc,

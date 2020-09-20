@@ -485,11 +485,11 @@ impl api::Instance for Instance {
         let sharing = map_sharing_mode(sharing);
 
         let mut closest_format = ptr::null_mut();
-        let hr = dbg!(physical_device.audio_client.IsFormatSupported(
+        let hr = physical_device.audio_client.IsFormatSupported(
             sharing,
             &wave_format as *const _ as _,
             &mut closest_format
-        ));
+        );
 
         hr == winerror::S_OK
     }

@@ -7,7 +7,6 @@ use std::ptr;
 
 struct PhysicalDevice {
     device_name: String,
-    dev: *const i8,
     streams: api::StreamFlags,
     sample_spec: pulse::pa_sample_spec,
     channels: api::ChannelMask,
@@ -48,7 +47,7 @@ fn map_channels(channel_map: &pulse::pa_channel_map) -> api::ChannelMask {
 }
 
 extern "C" fn sink_info_cb(
-    context: *mut pulse::pa_context,
+    _context: *mut pulse::pa_context,
     info: *const pulse::pa_sink_info,
     _: i32,
     user: *mut c_void,
@@ -76,7 +75,6 @@ extern "C" fn sink_info_cb(
         .or_insert_with(|| {
             Handle::new(PhysicalDevice {
                 device_name,
-                dev: info.name,
                 streams: api::StreamFlags::OUTPUT,
                 sample_spec: info.sample_spec,
                 channels: map_channels(&info.channel_map),
@@ -85,7 +83,7 @@ extern "C" fn sink_info_cb(
 }
 
 extern "C" fn source_info_cb(
-    context: *mut pulse::pa_context,
+    _context: *mut pulse::pa_context,
     info: *const pulse::pa_source_info,
     _: i32,
     user: *mut c_void,
@@ -117,7 +115,6 @@ extern "C" fn source_info_cb(
         .or_insert_with(|| {
             Handle::new(PhysicalDevice {
                 device_name,
-                dev: info.name,
                 streams: api::StreamFlags::INPUT,
                 sample_spec: info.sample_spec,
                 channels: map_channels(&info.channel_map),
@@ -141,7 +138,6 @@ pub struct Instance {
 
 impl api::Instance for Instance {
     type Device = Device;
-    type Stream = Stream;
     type Session = (); // TODO
 
     unsafe fn properties() -> api::InstanceProperties {
@@ -222,14 +218,15 @@ impl api::Instance for Instance {
         Ok(api::PhysicalDeviceProperties {
             device_name: physical_device.device_name.clone(),
             streams: physical_device.streams,
+            form_factor: api::FormFactor::Unknown, // TODO?
         })
     }
 
     unsafe fn physical_device_supports_format(
         &self,
-        physical_device: api::PhysicalDevice,
+        _physical_device: api::PhysicalDevice,
         sharing: api::SharingMode,
-        frame_desc: api::FrameDesc,
+        _frame_desc: api::FrameDesc,
     ) -> bool {
         if sharing == api::SharingMode::Exclusive {
             // concurrent only
@@ -242,9 +239,9 @@ impl api::Instance for Instance {
 
     unsafe fn physical_device_default_concurrent_format(
         &self,
-        physical_device: PhysicalDevice,
-    ) -> Result<FrameDesc> {
-        let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
+        physical_device: api::PhysicalDevice,
+    ) -> Result<api::FrameDesc> {
+        let physical_device = Handle::<PhysicalDevice>::from_raw(physical_device);
         physical_device.default_format()
     }
 
@@ -254,8 +251,6 @@ impl api::Instance for Instance {
         channels: api::Channels,
         callback: api::StreamCallback,
     ) -> Result<Self::Device> {
-        let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
-
         let stream = if !channels.output.is_empty() {
             let spec = pulse::pa_sample_spec {
                 format: map_format(desc.sample_desc.format),
@@ -313,11 +308,11 @@ impl api::Instance for Instance {
         })
     }
 
-    unsafe fn create_session(&self, sample_rate: usize) -> Result<Self::Session> {
+    unsafe fn create_session(&self, _sample_rate: usize) -> Result<Self::Session> {
         Ok(())
     }
 
-    unsafe fn set_event_callback<F>(&mut self, callback: Option<F>) -> Result<()>
+    unsafe fn set_event_callback<F>(&mut self, _callback: Option<F>) -> Result<()>
     where
         F: FnMut(api::Event) + Send + 'static,
     {
@@ -395,7 +390,7 @@ impl api::Device for Device {
     }
 
     unsafe fn stream_properties(&self) -> api::StreamProperties {
-        let stream = self.0;
+        let stream = self.stream;
 
         let buffer_attrs = &*pulse::pa_stream_get_buffer_attr(stream);
         let sample_spec = &*pulse::pa_stream_get_sample_spec(stream);
@@ -410,8 +405,9 @@ impl api::Device for Device {
 
     unsafe fn submit_buffers(&mut self, timeout_ms: u32) -> Result<()> {
         let buffers = self.acquire_buffers(timeout_ms)?;
+        let properties = self.stream_properties();
         (self.callback)(api::Stream {
-            properties: self.stream_properties(),
+            properties,
             buffers,
         });
         self.release_buffers(buffers.frames)
