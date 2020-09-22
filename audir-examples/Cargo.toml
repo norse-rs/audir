@@ -21,7 +21,7 @@ audir = { path = "../audir" }
 audrey = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
-ndk-glue = "0.1.1"
+ndk-glue = "0.2"
 
 [package.metadata.android]
 assets = "assets"

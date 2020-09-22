@@ -33,7 +33,7 @@ coreaudio-sys = "0.2"
 audir-sles = "0.1"
 ndk = { version = "0.2", features = ["aaudio"] }
 ndk-sys = "0.2"
-ndk-glue = "0.1"
+ndk-glue = "0.2"
 jni = "0.16"
 
 [dev-dependencies]
