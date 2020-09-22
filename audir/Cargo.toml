@@ -3,6 +3,14 @@ name = "audir"
 version = "0.1.0"
 authors = ["msiglreith <m.siglreith@gmail.com>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "Low-level audio library"
+documentation = "https://docs.rs/audir"
+repository = "https://github.com/norse-rs/audir"
+readme = "../README.md"
+keywords = ["audio"]
+categories = ["game-engines", "audio"]
+exclude = [".github/*"]
 workspace = ".."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
