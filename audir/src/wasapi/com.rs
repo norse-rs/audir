@@ -1,5 +1,10 @@
 use super::WasapiResult;
-use std::{fmt, hash::{Hash, Hasher}, ops::Deref, ptr};
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+    ops::Deref,
+    ptr,
+};
 use winapi::ctypes::c_void;
 use winapi::shared::guiddef;
 use winapi::um::unknwnbase::IUnknown;

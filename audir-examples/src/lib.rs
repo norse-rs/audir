@@ -1,11 +1,4 @@
-#[cfg(all(target_os = "android", feature = "aaudio"))]
-use audir::aaudio::Instance;
-#[cfg(all(target_os = "android", feature = "opensles"))]
-use audir::opensles::Instance;
-#[cfg(target_os = "linux")]
-use audir::pulse::Instance;
-#[cfg(windows)]
-use audir::wasapi::Instance;
+pub mod instance;
 
 #[cfg(feature = "music")]
 mod music;

@@ -173,7 +173,9 @@ impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
         match *self {
             Error::DeviceLost => writeln!(fmt, "Device lost"),
-            Error::Validation { ref description } => writeln!(fmt, "Validation error: {}", description),
+            Error::Validation { ref description } => {
+                writeln!(fmt, "Validation error: {}", description)
+            }
             Error::Internal { ref cause } => writeln!(fmt, "Internal: {}", cause),
         }
     }
@@ -181,7 +183,9 @@ impl fmt::Display for Error {
 
 impl Error {
     pub(crate) fn validation<O, T: ToString>(description: T) -> Result<O> {
-        Err(Error::Validation { description: description.to_string() })
+        Err(Error::Validation {
+            description: description.to_string(),
+        })
     }
 }
 

@@ -141,7 +141,9 @@ unsafe fn map_waveformat(format: *const WAVEFORMATEX) -> Result<api::FrameDesc> 
                 if subformat == Guid(ksmedia::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT) && samples == 32 {
                     api::Format::F32
                 } else {
-                    return Err(api::Error::Internal { cause: "unsupported format".into() }); // TODO
+                    return Err(api::Error::Internal {
+                        cause: "unsupported format".into(),
+                    }); // TODO
                 };
 
             let mut channels = api::ChannelMask::empty();
@@ -161,7 +163,9 @@ unsafe fn map_waveformat(format: *const WAVEFORMATEX) -> Result<api::FrameDesc> 
                 sample_rate: wave_format.nSamplesPerSec as _,
             })
         }
-        _ => Err(api::Error::Internal { cause: "unsupported wave format".into() }), // TODO
+        _ => Err(api::Error::Internal {
+            cause: "unsupported wave format".into(),
+        }), // TODO
     }
 }
 
@@ -349,7 +353,9 @@ impl api::Instance for Instance {
 
         let use_default_sample_rate = desc.sample_desc.sample_rate == api::DEFAULT_SAMPLE_RATE;
         if use_default_sample_rate && desc.sharing == api::SharingMode::Exclusive {
-            return api::Error::validation("Default sample rate can't be used with exclusive sharing mode");
+            return api::Error::validation(
+                "Default sample rate can't be used with exclusive sharing mode",
+            );
         }
 
         let physical_device = Handle::<PhysicalDevice>::from_raw(desc.physical_device);
@@ -358,7 +364,8 @@ impl api::Instance for Instance {
         let fence = Fence::create(false, false);
 
         let sample_rate = if use_default_sample_rate {
-            self.physical_device_default_concurrent_format(desc.physical_device)?.sample_rate
+            self.physical_device_default_concurrent_format(desc.physical_device)?
+                .sample_rate
         } else {
             desc.sample_desc.sample_rate
         };
@@ -445,7 +452,9 @@ impl api::Instance for Instance {
 
     unsafe fn create_session(&self, sample_rate: usize) -> Result<Session> {
         if sample_rate == api::DEFAULT_SAMPLE_RATE {
-            return api::Error::validation("Default sample rate can't be used for session creation");
+            return api::Error::validation(
+                "Default sample rate can't be used for session creation",
+            );
         }
 
         let rt_handle =
@@ -488,7 +497,7 @@ impl api::Instance for Instance {
         let hr = physical_device.audio_client.IsFormatSupported(
             sharing,
             &wave_format as *const _ as _,
-            &mut closest_format
+            &mut closest_format,
         );
 
         hr == winerror::S_OK

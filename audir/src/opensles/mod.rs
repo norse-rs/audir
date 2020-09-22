@@ -249,7 +249,8 @@ impl api::Instance for Instance {
                     buffers: api::StreamBuffers {
                         output: buffer.as_mut_ptr() as _,
                         input: ptr::null(),
-                        frames: buffer.len() / data.frame_desc.channels.bits().count_ones() as usize,
+                        frames: buffer.len()
+                            / data.frame_desc.channels.bits().count_ones() as usize,
                     },
                 };
 

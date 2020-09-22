@@ -1,4 +1,4 @@
-use crate::Instance;
+use crate::instance::Instance;
 use audir::{Device, Instance as InstanceTrait};
 
 #[cfg(target_os = "android")]
@@ -24,8 +24,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> Vec<u8> {
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "android"))]
     let mut audio_stream = {
-        let file_path = std::env::args()
-            .nth(1);
+        let file_path = std::env::args().nth(1);
         match file_path {
             Some(path) => audrey::open(path)?,
             None => {

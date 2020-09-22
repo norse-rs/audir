@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
 
         for device in &physical_devices {
             let properties = instance.physical_device_properties(*device)?;
-            println!("{:#?}", instance.physical_device_properties(*device)?);
+            println!("{:#?}", properties);
         }
 
         if let Some(output_device) = instance.default_physical_output_device() {

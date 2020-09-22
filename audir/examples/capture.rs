@@ -64,8 +64,10 @@ fn main() -> anyhow::Result<()> {
                     let num_channels = stream.properties.num_channels();
 
                     let audir::StreamBuffers { input, frames, .. } = stream.buffers;
-                    let buffer =
-                        std::slice::from_raw_parts(input as *const f32, frames as usize * num_channels);
+                    let buffer = std::slice::from_raw_parts(
+                        input as *const f32,
+                        frames as usize * num_channels,
+                    );
 
                     let mut writer = wav.lock().unwrap();
                     for sample in buffer {
@@ -87,7 +89,7 @@ fn main() -> anyhow::Result<()> {
                 }
                 audir::StreamMode::Callback => {
                     device.start();
-                    while start.elapsed() < duration { }
+                    while start.elapsed() < duration {}
                 }
             }
 

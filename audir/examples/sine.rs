@@ -68,13 +68,17 @@ fn main() -> anyhow::Result<()> {
 
                 source = Some(match source.take() {
                     Some(source) => source,
-                    None => dasp::signal::rate(sample_rate as _).const_hz(frequency).sine()
+                    None => dasp::signal::rate(sample_rate as _)
+                        .const_hz(frequency)
+                        .sine(),
                 });
                 let source = source.as_mut().unwrap();
 
                 let audir::StreamBuffers { output, frames, .. } = stream.buffers;
-                let buffer =
-                    std::slice::from_raw_parts_mut(output as *mut f32, frames as usize * num_channels);
+                let buffer = std::slice::from_raw_parts_mut(
+                    output as *mut f32,
+                    frames as usize * num_channels,
+                );
 
                 for dt in 0..frames {
                     let sample = source.next() as f32 * 0.5;
@@ -95,7 +99,7 @@ fn main() -> anyhow::Result<()> {
             }
             audir::StreamMode::Callback => {
                 device.start();
-                loop { }
+                loop {}
             }
         }
     }

@@ -308,16 +308,14 @@ impl api::Instance for Instance {
             .unwrap()
             .device_id(desc.physical_device as _)
             .data_callback(Box::new(move |astream, data, frames| {
-                callback(
-                    api::Stream {
-                        properties: get_stream_properties(&astream),
-                        buffers: api::StreamBuffers {
-                            frames: frames as _,
-                            input: ptr::null(),
-                            output: data as *mut _,
-                        },
-                    }
-                );
+                callback(api::Stream {
+                    properties: get_stream_properties(&astream),
+                    buffers: api::StreamBuffers {
+                        frames: frames as _,
+                        input: ptr::null(),
+                        output: data as *mut _,
+                    },
+                });
                 aaudio::AAudioCallbackResult::Continue
             }));
         let stream = builder.open_stream().unwrap();
