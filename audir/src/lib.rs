@@ -10,6 +10,8 @@ pub mod opensles;
 #[cfg(target_os = "android")]
 pub mod aaudio;
 
+pub mod null;
+
 pub(crate) mod api;
 mod handle;
 

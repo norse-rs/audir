@@ -13,6 +13,8 @@ pub enum DriverId {
     PulseAudio,
     OpenSLES,
     AAudio,
+
+    Null,
 }
 
 bitflags::bitflags! {
