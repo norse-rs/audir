@@ -86,9 +86,9 @@ impl api::Instance for Instance {
 pub struct Device;
 
 impl api::Device for Device {
-    unsafe fn start(&self) { }
+    unsafe fn start(&self) {}
 
-    unsafe fn stop(&self) { }
+    unsafe fn stop(&self) {}
 
     unsafe fn stream_properties(&self) -> api::StreamProperties {
         api::StreamProperties {
