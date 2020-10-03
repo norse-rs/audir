@@ -1,9 +1,14 @@
-use audir::Instance;
+#[cfg(target_os = "linux")]
+use audir::pulse::Instance;
+#[cfg(windows)]
+use audir::wasapi::Instance;
+
+use audir::Instance as InstanceTrait;
 
 fn main() -> anyhow::Result<()> {
     unsafe {
         #[cfg(windows)]
-        let instance = audir::wasapi::Instance::create("audir - devices");
+        let instance = Instance::create("audir - devices");
         #[cfg(target_os = "linux")]
         let instance = audir::pulse::Instance::create("audir - devices");
 
