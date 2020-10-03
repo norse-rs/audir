@@ -4,6 +4,12 @@
     <a href="https://github.com/norse-rs">
        <img src="https://img.shields.io/badge/project-norse-9cf.svg?style=flat-square" alt="NORSE">
     </a>
+    <a href="https://crates.io/crates/audir">
+      <img src="https://img.shields.io/crates/v/audir?style=flat-square" alt = "crates.io">
+    </a>
+    <a href="https://docs.rs/audir">
+      <img src="https://docs.rs/audir/badge.svg?style=flat-square" alt="docs">
+    </a>
     <a href="https://github.com/norse-rs/audir/actions">
         <img src="https://github.com/norse-rs/audir/workflows/ci/badge.svg?style=flat" alt="ci">
     </a>
@@ -14,8 +20,6 @@
     <a href="LICENSE-APACHE">
       <img src="https://img.shields.io/badge/license-APACHE2-green.svg?style=flat-square" alt="License - Apache2">
     </a>
-    <br>
-    <b>🚧 Under Construction 🚧</b>
 </p>
 
 Low level cross-platform audio library.
@@ -28,6 +32,7 @@ The library tries to be un-opionionated by closely tying the API to the exposed 
 - Pulse (Linux)
 - OpenSL|ES (Android)
 - AAudio (Android)
+- Null
 
 ## Usage
 
